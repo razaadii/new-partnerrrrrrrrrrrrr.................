@@ -1,7 +1,9 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
@@ -21,15 +23,52 @@ import { api } from '../services/api';
 export default function LoginScreen() {
   const router = useRouter();
 
-  const [email, setEmail] = useState('123@aadii');
+  const [email, setEmail] = useState('123@gym');
   const [password, setPassword] = useState('123');
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const handleLogin = async () => {
-    const res = await api.login(email.trim(), password);
-    if (res && res.success) {
-      router.push('/dashboard' as any);
+    if (!email.trim() || !password.trim()) {
+      setErrorMessage('Please enter your Partner ID / email and password.');
+      return;
+    }
+
+    setLoading(true);
+    setErrorMessage('');
+
+    try {
+      const res = await api.login(email.trim(), password);
+
+      if (res && res.success) {
+        const partner = res.data?.partner;
+        const businessType = partner?.business_type || (email.includes('gym') ? 'gym' : 'service');
+
+        if (businessType === 'gym') {
+          router.replace('/gym/dashboard' as any);
+        } else {
+          router.replace('/dashboard' as any);
+        }
+      } else {
+        const msg = res?.message || 'Invalid Gym ID or password.';
+        setErrorMessage(msg);
+        Alert.alert('Login Failed', msg);
+      }
+    } catch (e: any) {
+      setErrorMessage('Unable to connect to SlotB server. Check that backend is running.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSelectDemo = (type: 'gym' | 'service') => {
+    setErrorMessage('');
+    if (type === 'gym') {
+      setEmail('123@gym');
+      setPassword('123');
     } else {
-      Alert.alert('Login Failed', res?.message || 'Invalid email or password.');
+      setEmail('123@aadii');
+      setPassword('123');
     }
   };
 
@@ -41,7 +80,7 @@ export default function LoginScreen() {
     <View style={styles.screen}>
       <StatusBar style="dark" />
 
-      {/* Decorative city skyline & watermarks */}
+      {/* Memoized decorative city skyline */}
       <CitySkylineBackground />
 
       <SafeAreaView style={styles.safeArea}>
@@ -58,27 +97,84 @@ export default function LoginScreen() {
             {/* Top Brand Header */}
             <View style={styles.header}>
               <SlotBLogo badgeVariant="blue" size="medium" />
-
               <Text style={styles.title}>Welcome Back!</Text>
-              <Text style={styles.subtitle}>Login to manage your businees</Text>
+              <Text style={styles.subtitle}>Login to manage your business</Text>
+
+              {/* Demo Account Switcher */}
+              <View style={styles.demoSwitcher}>
+                <Pressable
+                  onPress={() => handleSelectDemo('gym')}
+                  style={[
+                    styles.demoPill,
+                    email === '123@gym' && styles.demoPillActive,
+                  ]}
+                >
+                  <Ionicons
+                    name="barbell"
+                    size={14}
+                    color={email === '123@gym' ? '#FFFFFF' : '#0052FF'}
+                  />
+                  <Text
+                    style={[
+                      styles.demoPillText,
+                      email === '123@gym' && styles.demoPillTextActive,
+                    ]}
+                  >
+                    Gym Owner (123@gym)
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => handleSelectDemo('service')}
+                  style={[
+                    styles.demoPill,
+                    email === '123@aadii' && styles.demoPillActive,
+                  ]}
+                >
+                  <Ionicons
+                    name="construct"
+                    size={14}
+                    color={email === '123@aadii' ? '#FFFFFF' : '#0052FF'}
+                  />
+                  <Text
+                    style={[
+                      styles.demoPillText,
+                      email === '123@aadii' && styles.demoPillTextActive,
+                    ]}
+                  >
+                    Service Tech (123@aadii)
+                  </Text>
+                </Pressable>
+              </View>
             </View>
 
             {/* Elevated White Form Card */}
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Log In</Text>
               <Text style={styles.cardSubtitle}>
-                Enter your details to continue
+                Enter your credentials to continue
               </Text>
 
-              {/* Email Address Input */}
+              {/* Error Banner if login fails */}
+              {errorMessage ? (
+                <View style={styles.errorBox}>
+                  <Ionicons name="alert-circle" size={18} color="#DC2626" />
+                  <Text style={styles.errorText}>{errorMessage}</Text>
+                </View>
+              ) : null}
+
+              {/* Partner ID / Email Input */}
               <InputField
-                label="Email Address"
-                placeholder="Enter your email address"
-                leftIconName="mail-outline"
+                label="Partner / Gym ID"
+                placeholder="Enter Gym ID (e.g. 123@gym)"
+                leftIconName="person-outline"
                 keyboardType="email-address"
                 autoCapitalize="none"
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={(text) => {
+                  setEmail(text);
+                  if (errorMessage) setErrorMessage('');
+                }}
               />
 
               {/* Password Input */}
@@ -88,7 +184,10 @@ export default function LoginScreen() {
                 leftIconName="lock-closed-outline"
                 isPassword={true}
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={(text) => {
+                  setPassword(text);
+                  if (errorMessage) setErrorMessage('');
+                }}
               />
 
               {/* Forgot Password Link */}
@@ -103,12 +202,18 @@ export default function LoginScreen() {
               {/* Log In Button */}
               <Pressable
                 onPress={handleLogin}
+                disabled={loading}
                 style={({ pressed }) => [
                   styles.loginButton,
                   pressed && styles.loginButtonPressed,
+                  loading && styles.loginButtonDisabled,
                 ]}
               >
-                <Text style={styles.loginButtonText}>Log In</Text>
+                {loading ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Text style={styles.loginButtonText}>Log In</Text>
+                )}
               </Pressable>
 
               {/* OR Divider */}
@@ -150,19 +255,19 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 16,
-    paddingTop: 16,
+    paddingTop: 12,
     paddingBottom: 32,
     justifyContent: 'center',
   },
   header: {
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   title: {
     fontSize: 24,
     fontWeight: '800',
     color: '#0F172A',
-    marginTop: 16,
+    marginTop: 12,
     letterSpacing: -0.3,
   },
   subtitle: {
@@ -171,12 +276,40 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontWeight: '400',
   },
+  demoSwitcher: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 14,
+  },
+  demoPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+  },
+  demoPillActive: {
+    backgroundColor: '#0052FF',
+    borderColor: '#0052FF',
+  },
+  demoPillText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#0052FF',
+  },
+  demoPillTextActive: {
+    color: '#FFFFFF',
+  },
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
     paddingHorizontal: 20,
-    paddingTop: 22,
-    paddingBottom: 24,
+    paddingTop: 20,
+    paddingBottom: 22,
     borderWidth: 1,
     borderColor: '#EEF2F6',
     ...Platform.select({
@@ -201,12 +334,29 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#64748B',
     marginTop: 2,
-    marginBottom: 18,
+    marginBottom: 16,
+  },
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    padding: 10,
+    borderRadius: 10,
+    marginBottom: 14,
+  },
+  errorText: {
+    fontSize: 12.5,
+    color: '#B91C1C',
+    fontWeight: '500',
+    flex: 1,
   },
   forgotPasswordButton: {
     alignSelf: 'flex-end',
     marginTop: -4,
-    marginBottom: 18,
+    marginBottom: 16,
   },
   forgotPasswordText: {
     fontSize: 13,
@@ -224,6 +374,9 @@ const styles = StyleSheet.create({
     opacity: 0.9,
     backgroundColor: '#0046E0',
   },
+  loginButtonDisabled: {
+    opacity: 0.6,
+  },
   loginButtonText: {
     color: '#FFFFFF',
     fontSize: 15,
@@ -232,7 +385,7 @@ const styles = StyleSheet.create({
   dividerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 18,
+    marginVertical: 16,
   },
   dividerLine: {
     flex: 1,
@@ -247,7 +400,7 @@ const styles = StyleSheet.create({
   },
   footer: {
     alignItems: 'center',
-    marginTop: 22,
+    marginTop: 20,
     marginBottom: 8,
   },
   footerText: {

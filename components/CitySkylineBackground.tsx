@@ -4,7 +4,7 @@ import Svg, { Circle, G, Path, Rect } from 'react-native-svg';
 
 const { width } = Dimensions.get('window');
 
-export const CitySkylineBackground: React.FC = () => {
+export const CitySkylineBackground: React.FC = React.memo(() => {
   return (
     <View style={styles.container} pointerEvents="none">
       {/* Top-Left Decorative Dot Matrix */}
@@ -81,7 +81,7 @@ export const CitySkylineBackground: React.FC = () => {
       </View>
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {

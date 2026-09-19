@@ -21,10 +21,10 @@ export default function SplashScreen() {
   const [progress] = useState(new Animated.Value(0));
 
   useEffect(() => {
-    // Smooth loading animation over 2.2 seconds
+    // Smooth, fast loading animation over 800ms
     Animated.timing(progress, {
       toValue: 1,
-      duration: 2200,
+      duration: 800,
       useNativeDriver: false,
     }).start(() => {
       // Auto navigate to login screen

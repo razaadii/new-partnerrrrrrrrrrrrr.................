@@ -51,8 +51,37 @@ if (empty($cleanUri)) {
 
 // Route mapping
 $routes = [
-    'auth/login' => __DIR__ . '/auth/login.php',
+    // Auth
+    'auth/login' => __DIR__ . '/api/auth/login.php',
+    'auth/login.php' => __DIR__ . '/api/auth/login.php',
+    'auth/logout' => __DIR__ . '/api/auth/logout.php',
+    'auth/logout.php' => __DIR__ . '/api/auth/logout.php',
+    'auth/me' => __DIR__ . '/api/auth/me.php',
+    'auth/me.php' => __DIR__ . '/api/auth/me.php',
     'auth/register' => __DIR__ . '/auth/register.php',
+    'auth/register.php' => __DIR__ . '/auth/register.php',
+
+    // Gym Module Endpoints
+    'gym/dashboard' => __DIR__ . '/api/gym/dashboard.php',
+    'gym/dashboard.php' => __DIR__ . '/api/gym/dashboard.php',
+    'gym/business' => __DIR__ . '/api/gym/business.php',
+    'gym/business.php' => __DIR__ . '/api/gym/business.php',
+    'gym/members' => __DIR__ . '/api/gym/members.php',
+    'gym/members.php' => __DIR__ . '/api/gym/members.php',
+    'gym/member' => __DIR__ . '/api/gym/member.php',
+    'gym/member.php' => __DIR__ . '/api/gym/member.php',
+    'gym/plans' => __DIR__ . '/api/gym/plans.php',
+    'gym/plans.php' => __DIR__ . '/api/gym/plans.php',
+    'gym/attendance' => __DIR__ . '/api/gym/attendance.php',
+    'gym/attendance.php' => __DIR__ . '/api/gym/attendance.php',
+    'gym/payments' => __DIR__ . '/api/gym/payments.php',
+    'gym/payments.php' => __DIR__ . '/api/gym/payments.php',
+    'gym/timings' => __DIR__ . '/api/gym/timings.php',
+    'gym/timings.php' => __DIR__ . '/api/gym/timings.php',
+    'gym/reminders' => __DIR__ . '/api/gym/reminders.php',
+    'gym/reminders.php' => __DIR__ . '/api/gym/reminders.php',
+
+    // Existing Service Partner Routes
     'jobs/list' => __DIR__ . '/jobs/list.php',
     'jobs/accept' => __DIR__ . '/jobs/accept.php',
     'jobs/verify-code' => __DIR__ . '/jobs/verify_code.php',
@@ -70,8 +99,15 @@ if (isset($routes[$cleanUri]) && file_exists($routes[$cleanUri])) {
     exit();
 }
 
-// Fallback: Check if direct php file exists
-$directFile = __DIR__ . '/' . $cleanUri . '.php';
+// Fallback 1: Check in api/ subdirectory
+$apiDirectFile = __DIR__ . '/api/' . $cleanUri . (str_ends_with($cleanUri, '.php') ? '' : '.php');
+if (file_exists($apiDirectFile)) {
+    require $apiDirectFile;
+    exit();
+}
+
+// Fallback 2: Check if direct php file exists
+$directFile = __DIR__ . '/' . $cleanUri . (str_ends_with($cleanUri, '.php') ? '' : '.php');
 if (file_exists($directFile)) {
     require $directFile;
     exit();
@@ -83,3 +119,4 @@ echo json_encode([
     'success' => false,
     'message' => 'API route not found: ' . $uri
 ]);
+

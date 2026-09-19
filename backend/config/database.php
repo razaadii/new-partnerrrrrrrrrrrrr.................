@@ -11,11 +11,11 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'OPTIONS
     exit();
 }
 
-$host = '127.0.0.1';
-$port = '3306';
-$db_name = 'slotb_partner';
-$username = 'root';
-$password = '';
+$host = getenv('DB_HOST') ?: '127.0.0.1';
+$port = getenv('DB_PORT') ?: '3306';
+$db_name = getenv('DB_NAME') ?: 'slotb_partner';
+$username = getenv('DB_USER') ?: 'root';
+$password = getenv('DB_PASS') !== false ? getenv('DB_PASS') : '';
 
 try {
     // First connect without db to ensure database exists

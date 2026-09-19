@@ -1,7 +1,7 @@
-import { Feather, FontAwesome, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   Alert,
   Pressable,

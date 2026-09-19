@@ -64,11 +64,11 @@ export const MapRouteGraphic: React.FC<MapRouteGraphicProps> = ({
 
         {/* Grid Road Network */}
         {/* Secondary roads (white with subtle border) */}
-        <Path d={`M-20 60 L${width + 20} 85`} stroke="#FFFFFF" strokeWidth={10} />
-        <Path d={`M-20 180 L${width + 20} 140`} stroke="#FFFFFF" strokeWidth={8} />
-        <Path d={`M60 -20 L160 ${MAP_HEIGHT + 20}`} stroke="#FFFFFF" strokeWidth={10} />
-        <Path d={`M220 -20 L270 ${MAP_HEIGHT + 20}`} stroke="#FFFFFF" strokeWidth={8} />
-        <Path d={`M300 30 L${width + 10} 240`} stroke="#FFFFFF" strokeWidth={7} />
+        <Path d={`M-20 60 L${width + 20} 85`} stroke="#FFFFFF" strokeWidth={10} fill="none" />
+        <Path d={`M-20 180 L${width + 20} 140`} stroke="#FFFFFF" strokeWidth={8} fill="none" />
+        <Path d={`M60 -20 L160 ${MAP_HEIGHT + 20}`} stroke="#FFFFFF" strokeWidth={10} fill="none" />
+        <Path d={`M220 -20 L270 ${MAP_HEIGHT + 20}`} stroke="#FFFFFF" strokeWidth={8} fill="none" />
+        <Path d={`M300 30 L${width + 10} 240`} stroke="#FFFFFF" strokeWidth={7} fill="none" />
         <Path d={`M10 120 Q120 160 260 90`} stroke="#FFFFFF" strokeWidth={9} fill="none" />
 
         {/* NH 31 Main Highway (Yellow with orange badge) */}
@@ -76,6 +76,7 @@ export const MapRouteGraphic: React.FC<MapRouteGraphicProps> = ({
           d={`M-10 110 L120 220 L${width * 0.7} ${MAP_HEIGHT + 20}`}
           stroke="#FDE047"
           strokeWidth={7}
+          fill="none"
         />
 
         {/* GPS Blue Navigation Route Polyline */}

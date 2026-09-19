@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useState } from 'react';
 import {
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -15,15 +16,21 @@ import { CitySkylineBackground } from '../components/CitySkylineBackground';
 import { GoogleButton } from '../components/GoogleButton';
 import { InputField } from '../components/InputField';
 import { SlotBLogo } from '../components/SlotBLogo';
+import { api } from '../services/api';
 
 export default function LoginScreen() {
   const router = useRouter();
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('123@aadii');
+  const [password, setPassword] = useState('123');
 
-  const handleLogin = () => {
-    router.push('/dashboard' as any);
+  const handleLogin = async () => {
+    const res = await api.login(email.trim(), password);
+    if (res && res.success) {
+      router.push('/dashboard' as any);
+    } else {
+      Alert.alert('Login Failed', res?.message || 'Invalid email or password.');
+    }
   };
 
   const handleCreateAccount = () => {

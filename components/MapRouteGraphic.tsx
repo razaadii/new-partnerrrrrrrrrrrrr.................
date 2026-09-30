@@ -27,6 +27,8 @@ export const MapRouteGraphic: React.FC<MapRouteGraphicProps> = ({
   const handleLocate = () => {
     if (onLocatePress) {
       onLocatePress();
+    } else if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.alert('GPS Location Centered\nCurrent Position: Near NH 31, Begusarai, Bihar\nGPS Signal: Strong');
     } else {
       Alert.alert(
         'GPS Location Centered',

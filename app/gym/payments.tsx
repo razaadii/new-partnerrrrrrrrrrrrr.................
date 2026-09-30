@@ -18,19 +18,16 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GymBottomTabBar } from '../../components/GymBottomTabBar';
+import { ThemedAlert } from '../../components/ThemedAlert';
+import { ThemedBottomSheet } from '../../components/ThemedBottomSheet';
 import { api } from '../../services/api';
 
 export default function GymPaymentsScreen() {
   const router = useRouter();
 
-  const [payments, setPayments] = useState<any[]>([]);
-  const [summary, setSummary] = useState({
-    total_collected: 0,
-    pending_dues: 0,
-    paid_count: 0,
-    due_count: 0,
-  });
-  const [loading, setLoading] = useState(true);
+  const [payments, setPayments] = useState<any[]>(() => api.gym.getInitialPayments().data.payments);
+  const [summary, setSummary] = useState(() => api.gym.getInitialPayments().data.summary);
+  const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [activeFilter, setActiveFilter] = useState<'all' | 'paid' | 'due'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -38,11 +35,59 @@ export default function GymPaymentsScreen() {
 
   // Record Payment Modal State
   const [modalVisible, setModalVisible] = useState(false);
-  const [membersList, setMembersList] = useState<any[]>([]);
-  const [plansList, setPlansList] = useState<any[]>([]);
+  const [membersList, setMembersList] = useState<any[]>(() => api.gym.getInitialMembers({ status: 'active' }).data.members);
+  const [plansList, setPlansList] = useState<any[]>(() => api.gym.getInitialPlans().data);
   const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
   const [amount, setAmount] = useState('');
+
+  // Themed Alert State
+  const [alertConfig, setAlertConfig] = useState<{
+    visible: boolean;
+    type: 'success' | 'warning' | 'danger' | 'info' | 'confirm';
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    showCancel?: boolean;
+    onConfirm: () => void;
+    onCancel?: () => void;
+  }>({
+    visible: false,
+    type: 'info',
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
+  const showAlert = (
+    type: 'success' | 'warning' | 'danger' | 'info' | 'confirm',
+    title: string,
+    message: string,
+    onConfirm?: () => void,
+    showCancel = false,
+    confirmText = 'OK',
+    cancelText = 'Cancel',
+    onCancel?: () => void
+  ) => {
+    setAlertConfig({
+      visible: true,
+      type,
+      title,
+      message,
+      confirmText,
+      cancelText,
+      showCancel,
+      onConfirm: () => {
+        setAlertConfig((prev) => ({ ...prev, visible: false }));
+        if (onConfirm) onConfirm();
+      },
+      onCancel: () => {
+        setAlertConfig((prev) => ({ ...prev, visible: false }));
+        if (onCancel) onCancel();
+      },
+    });
+  };
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [dueDate, setDueDate] = useState('');
   const [status, setStatus] = useState<'paid' | 'due'>('paid');
@@ -53,13 +98,20 @@ export default function GymPaymentsScreen() {
 
   const fetchPayments = useCallback(async () => {
     try {
-      setLoading(true);
+      // Instant local filter in 0ms
+      const local = api.gym.getInitialPayments(activeFilter, searchQuery);
+      if (local?.data?.payments) {
+        setPayments(local.data.payments);
+        if (local.data.summary) {
+          setSummary(local.data.summary);
+        }
+      }
+
+      // Background network sync
       const res = await api.gym.getPayments(activeFilter, searchQuery);
       if (res && res.success) {
-        setPayments(res.data?.payments || []);
-        if (res.data?.summary) {
-          setSummary(res.data.summary);
-        }
+        if (res.data?.payments) setPayments(res.data.payments);
+        if (res.data?.summary) setSummary(res.data.summary);
       }
     } catch (e) {
       console.warn('Fetch payments error:', e);
@@ -118,15 +170,16 @@ export default function GymPaymentsScreen() {
     try {
       const res = await api.gym.sendReminder(memberId);
       if (res && res.success) {
-        Alert.alert(
+        showAlert(
+          'success',
           'Reminder Sent',
           `Payment renewal reminder recorded successfully for ${memberName}.`
         );
       } else {
-        Alert.alert('Notice', res?.message || 'Could not record reminder.');
+        showAlert('warning', 'Notice', res?.message || 'Could not record reminder.');
       }
     } catch (e) {
-      Alert.alert('Error', 'Failed to record reminder.');
+      showAlert('danger', 'Error', 'Failed to record reminder.');
     } finally {
       setReminderLoadingId(null);
     }
@@ -160,7 +213,7 @@ export default function GymPaymentsScreen() {
 
       if (res && res.success) {
         setModalVisible(false);
-        Alert.alert('Success', 'Payment recorded successfully!');
+        showAlert('success', 'Payment Recorded', 'Payment recorded successfully!');
         fetchPayments();
       } else {
         setFormError(res?.message || 'Failed to record payment.');
@@ -180,17 +233,10 @@ export default function GymPaymentsScreen() {
       <View style={styles.card}>
         <View style={styles.cardHeader}>
           <View style={styles.headerLeft}>
-            <View style={[styles.avatarCircle, isPaid ? styles.avatarPaid : styles.avatarDue]}>
-              <Ionicons
-                name={isPaid ? 'checkmark' : 'alert'}
-                size={18}
-                color={isPaid ? '#16A34A' : '#DC2626'}
-              />
-            </View>
-            <View>
-              <Text style={styles.memberName}>{item.member_name}</Text>
-              <Text style={styles.memberMobile}>{item.member_mobile}</Text>
-            </View>
+            <Text style={styles.memberName}>{item.member_name}</Text>
+            <Text style={styles.memberMobile}>
+              {item.plan_name || 'Membership'} • {item.member_mobile}
+            </Text>
           </View>
 
           <View style={styles.headerRight}>
@@ -215,27 +261,12 @@ export default function GymPaymentsScreen() {
           </View>
         </View>
 
-        <View style={styles.divider} />
-
         <View style={styles.cardFooter}>
-          <View style={styles.footerCol}>
-            <Text style={styles.footerLabel}>Plan / Category</Text>
-            <Text style={styles.footerValue}>{item.plan_name || 'Membership Fee'}</Text>
-          </View>
+          <Text style={styles.metaText}>
+            {isPaid ? `Paid: ${item.payment_date}` : `Due: ${item.due_date || item.payment_date}`} • {item.payment_method || 'UPI'}
+          </Text>
 
-          <View style={styles.footerCol}>
-            <Text style={styles.footerLabel}>{isPaid ? 'Paid On' : 'Due Date'}</Text>
-            <Text style={styles.footerValue}>{isPaid ? item.payment_date : item.due_date || item.payment_date}</Text>
-          </View>
-
-          <View style={styles.footerCol}>
-            <Text style={styles.footerLabel}>Method</Text>
-            <Text style={styles.footerValue}>{item.payment_method || 'UPI'}</Text>
-          </View>
-        </View>
-
-        {isDue && (
-          <View style={styles.actionRow}>
+          {isDue && (
             <Pressable
               onPress={() => handleSendReminder(item.member_id, item.member_name)}
               disabled={reminderLoadingId === item.member_id}
@@ -243,18 +274,19 @@ export default function GymPaymentsScreen() {
                 styles.reminderBtn,
                 pressed && styles.reminderBtnPressed,
               ]}
+              hitSlop={6}
             >
               {reminderLoadingId === item.member_id ? (
                 <ActivityIndicator size="small" color="#DC2626" />
               ) : (
                 <>
-                  <Ionicons name="notifications-outline" size={15} color="#DC2626" />
-                  <Text style={styles.reminderBtnText}>Send Due Reminder</Text>
+                  <Ionicons name="notifications-outline" size={13} color="#DC2626" />
+                  <Text style={styles.reminderBtnText}>Remind</Text>
                 </>
               )}
             </Pressable>
-          </View>
-        )}
+          )}
+        </View>
       </View>
     );
   };
@@ -352,8 +384,9 @@ export default function GymPaymentsScreen() {
           </View>
         ) : (
           <FlatList
+            style={styles.flex1}
             data={payments}
-            keyExtractor={(item) => String(item.id)}
+            keyExtractor={(item, index) => String(item.id || item.payment_id || index)}
             renderItem={renderPaymentItem}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
@@ -381,210 +414,219 @@ export default function GymPaymentsScreen() {
           />
         )}
 
-        {/* Record Payment Modal */}
-        <Modal
+        {/* Record Payment Themed Bottom Sheet */}
+        <ThemedBottomSheet
           visible={modalVisible}
-          animationType="slide"
-          transparent={true}
-          onRequestClose={() => setModalVisible(false)}
+          onClose={() => setModalVisible(false)}
+          title="Record Member Payment"
+          subtitle="Log receipt for membership fee or mark renewal dues"
+          icon="wallet-outline"
+          iconColor="#0052FF"
+          maxHeight="90%"
         >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Record Member Payment</Text>
-                <Pressable onPress={() => setModalVisible(false)} hitSlop={8}>
-                  <Ionicons name="close" size={24} color="#64748B" />
-                </Pressable>
+          <ScrollView
+            contentContainerStyle={styles.formScroll}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {formError ? (
+              <View style={styles.modalErrorBox}>
+                <Ionicons name="alert-circle" size={16} color="#DC2626" />
+                <Text style={styles.modalErrorText}>{formError}</Text>
               </View>
+            ) : null}
 
-              {formError ? (
-                <View style={styles.modalErrorBox}>
-                  <Ionicons name="alert-circle" size={16} color="#DC2626" />
-                  <Text style={styles.modalErrorText}>{formError}</Text>
-                </View>
-              ) : null}
-
-              <ScrollView contentContainerStyle={styles.formScroll} showsVerticalScrollIndicator={false}>
-                {/* Select Member */}
-                <Text style={styles.inputLabel}>Select Member *</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.hSelector}>
-                  {membersList.map((m) => (
-                    <Pressable
-                      key={`mem-${m.id}`}
-                      onPress={() => setSelectedMemberId(m.id)}
-                      style={[
-                        styles.selectChip,
-                        selectedMemberId === m.id && styles.selectChipActive,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.selectChipText,
-                          selectedMemberId === m.id && styles.selectChipTextActive,
-                        ]}
-                      >
-                        {m.name}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </ScrollView>
-
-                {/* Select Plan (Optional Auto-fill) */}
-                <Text style={styles.inputLabel}>Membership Plan (Auto-fill Fee)</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.hSelector}>
-                  {plansList.map((p) => (
-                    <Pressable
-                      key={`plan-${p.id}`}
-                      onPress={() => handlePlanSelect(p)}
-                      style={[
-                        styles.selectChip,
-                        selectedPlanId === p.id && styles.selectChipActive,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.selectChipText,
-                          selectedPlanId === p.id && styles.selectChipTextActive,
-                        ]}
-                      >
-                        {p.name} (₹{p.fee})
-                      </Text>
-                    </Pressable>
-                  ))}
-                </ScrollView>
-
-                {/* Amount */}
-                <Text style={styles.inputLabel}>Amount (₹) *</Text>
-                <TextInput
-                  style={styles.modalInput}
-                  placeholder="e.g. 1500"
-                  keyboardType="numeric"
-                  value={amount}
-                  onChangeText={setAmount}
-                  placeholderTextColor="#94A3B8"
-                />
-
-                {/* Status Toggle */}
-                <Text style={styles.inputLabel}>Payment Status</Text>
-                <View style={styles.toggleRow}>
-                  <Pressable
-                    onPress={() => setStatus('paid')}
-                    style={[styles.toggleBtn, status === 'paid' && styles.toggleBtnPaid]}
-                  >
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={16}
-                      color={status === 'paid' ? '#FFFFFF' : '#16A34A'}
-                    />
-                    <Text
-                      style={[
-                        styles.toggleText,
-                        status === 'paid' && styles.toggleTextActive,
-                      ]}
-                    >
-                      Paid (Received)
-                    </Text>
-                  </Pressable>
-
-                  <Pressable
-                    onPress={() => setStatus('due')}
-                    style={[styles.toggleBtn, status === 'due' && styles.toggleBtnDue]}
-                  >
-                    <Ionicons
-                      name="alert-circle"
-                      size={16}
-                      color={status === 'due' ? '#FFFFFF' : '#DC2626'}
-                    />
-                    <Text
-                      style={[
-                        styles.toggleText,
-                        status === 'due' && styles.toggleTextActive,
-                      ]}
-                    >
-                      Mark as Due
-                    </Text>
-                  </Pressable>
-                </View>
-
-                {/* Payment Method */}
-                <Text style={styles.inputLabel}>Payment Method</Text>
-                <View style={styles.methodRow}>
-                  {['UPI', 'Cash', 'Bank Transfer', 'Card'].map((pm) => (
-                    <Pressable
-                      key={pm}
-                      onPress={() => setPaymentMethod(pm)}
-                      style={[
-                        styles.methodChip,
-                        paymentMethod === pm && styles.methodChipActive,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.methodChipText,
-                          paymentMethod === pm && styles.methodChipTextActive,
-                        ]}
-                      >
-                        {pm}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-
-                {/* Payment & Due Dates */}
-                <View style={styles.dualInputRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.inputLabel}>Payment Date</Text>
-                    <TextInput
-                      style={styles.modalInput}
-                      value={paymentDate}
-                      onChangeText={setPaymentDate}
-                      placeholder="YYYY-MM-DD"
-                      placeholderTextColor="#94A3B8"
-                    />
-                  </View>
-
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.inputLabel}>Due / Next Renewal</Text>
-                    <TextInput
-                      style={styles.modalInput}
-                      value={dueDate}
-                      onChangeText={setDueDate}
-                      placeholder="YYYY-MM-DD"
-                      placeholderTextColor="#94A3B8"
-                    />
-                  </View>
-                </View>
-
-                {/* Notes */}
-                <Text style={styles.inputLabel}>Notes / Reference (Optional)</Text>
-                <TextInput
-                  style={styles.modalInput}
-                  placeholder="e.g. PhonePe transaction #48291"
-                  value={notes}
-                  onChangeText={setNotes}
-                  placeholderTextColor="#94A3B8"
-                />
-
-                {/* Submit Button */}
+            {/* Select Member */}
+            <Text style={styles.inputLabel}>Select Member *</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.hSelector}>
+              {membersList.map((m, idx) => (
                 <Pressable
-                  onPress={handleRecordPayment}
-                  disabled={submitting}
-                  style={({ pressed }) => [
-                    styles.submitButton,
-                    pressed && styles.submitButtonPressed,
-                    submitting && styles.submitButtonDisabled,
+                  key={`mem-${m.id || idx}`}
+                  onPress={() => setSelectedMemberId(m.id)}
+                  style={[
+                    styles.selectChip,
+                    selectedMemberId === m.id && styles.selectChipActive,
                   ]}
                 >
-                  {submitting ? (
-                    <ActivityIndicator color="#FFFFFF" size="small" />
-                  ) : (
-                    <Text style={styles.submitButtonText}>Confirm & Record Payment</Text>
-                  )}
+                  <Text
+                    style={[
+                      styles.selectChipText,
+                      selectedMemberId === m.id && styles.selectChipTextActive,
+                    ]}
+                  >
+                    {m.name}
+                  </Text>
                 </Pressable>
-              </ScrollView>
+              ))}
+            </ScrollView>
+
+            {/* Select Plan (Optional Auto-fill) */}
+            <Text style={styles.inputLabel}>Membership Plan (Auto-fill Fee)</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.hSelector}>
+              {plansList.map((p, idx) => (
+                <Pressable
+                  key={`plan-${p.id || idx}`}
+                  onPress={() => handlePlanSelect(p)}
+                  style={[
+                    styles.selectChip,
+                    selectedPlanId === p.id && styles.selectChipActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.selectChipText,
+                      selectedPlanId === p.id && styles.selectChipTextActive,
+                    ]}
+                  >
+                    {p.name} (₹{p.fee})
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+
+            {/* Amount */}
+            <Text style={styles.inputLabel}>Amount (₹) *</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="e.g. 1500"
+              keyboardType="numeric"
+              value={amount}
+              onChangeText={setAmount}
+              placeholderTextColor="#94A3B8"
+            />
+
+            {/* Status Toggle */}
+            <Text style={styles.inputLabel}>Payment Status</Text>
+            <View style={styles.toggleRow}>
+              <Pressable
+                onPress={() => setStatus('paid')}
+                style={[styles.toggleBtn, status === 'paid' && styles.toggleBtnPaid]}
+              >
+                <Ionicons
+                  name="checkmark-circle"
+                  size={16}
+                  color={status === 'paid' ? '#FFFFFF' : '#16A34A'}
+                />
+                <Text
+                  style={[
+                    styles.toggleText,
+                    status === 'paid' && styles.toggleTextActive,
+                  ]}
+                >
+                  Paid (Received)
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => setStatus('due')}
+                style={[styles.toggleBtn, status === 'due' && styles.toggleBtnDue]}
+              >
+                <Ionicons
+                  name="alert-circle"
+                  size={16}
+                  color={status === 'due' ? '#FFFFFF' : '#DC2626'}
+                />
+                <Text
+                  style={[
+                    styles.toggleText,
+                    status === 'due' && styles.toggleTextActive,
+                  ]}
+                >
+                  Mark as Due
+                </Text>
+              </Pressable>
             </View>
-          </View>
-        </Modal>
+
+            {/* Payment Method */}
+            <Text style={styles.inputLabel}>Payment Method</Text>
+            <View style={styles.methodRow}>
+              {['UPI', 'Cash', 'Bank Transfer', 'Card'].map((pm) => (
+                <Pressable
+                  key={pm}
+                  onPress={() => setPaymentMethod(pm)}
+                  style={[
+                    styles.methodChip,
+                    paymentMethod === pm && styles.methodChipActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.methodChipText,
+                      paymentMethod === pm && styles.methodChipTextActive,
+                    ]}
+                  >
+                    {pm}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            {/* Payment & Due Dates */}
+            <View style={styles.dualInputRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.inputLabel}>Payment Date</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={paymentDate}
+                  onChangeText={setPaymentDate}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor="#94A3B8"
+                />
+              </View>
+
+              <View style={{ flex: 1 }}>
+                <Text style={styles.inputLabel}>Due / Next Renewal</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={dueDate}
+                  onChangeText={setDueDate}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor="#94A3B8"
+                />
+              </View>
+            </View>
+
+            {/* Notes */}
+            <Text style={styles.inputLabel}>Notes / Reference (Optional)</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="e.g. PhonePe transaction #48291"
+              value={notes}
+              onChangeText={setNotes}
+              placeholderTextColor="#94A3B8"
+            />
+
+            {/* Submit Button */}
+            <Pressable
+              onPress={handleRecordPayment}
+              disabled={submitting}
+              style={({ pressed }) => [
+                styles.submitButton,
+                pressed && styles.submitButtonPressed,
+                submitting && styles.submitButtonDisabled,
+              ]}
+            >
+              {submitting ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={styles.submitButtonText}>Confirm & Record Payment</Text>
+              )}
+            </Pressable>
+          </ScrollView>
+        </ThemedBottomSheet>
+
+        {/* Global Themed Alert Dialog */}
+        <ThemedAlert
+          visible={alertConfig.visible}
+          type={alertConfig.type}
+          title={alertConfig.title}
+          message={alertConfig.message}
+          confirmText={alertConfig.confirmText}
+          cancelText={alertConfig.cancelText}
+          showCancel={alertConfig.showCancel}
+          onConfirm={alertConfig.onConfirm}
+          onCancel={alertConfig.onCancel}
+        />
 
         {/* Bottom Tab Bar */}
         <GymBottomTabBar activeTab="payments" />
@@ -599,6 +641,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
   },
   safeArea: {
+    flex: 1,
+  },
+  flex1: {
     flex: 1,
   },
   header: {
@@ -833,20 +878,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F8FAFC',
   },
-  footerCol: {
-    flex: 1,
-  },
-  footerLabel: {
-    fontSize: 10.5,
-    color: '#94A3B8',
+  metaText: {
+    fontSize: 11.5,
+    color: '#64748B',
     fontWeight: '500',
-  },
-  footerValue: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#334155',
-    marginTop: 2,
   },
   actionRow: {
     marginTop: 10,

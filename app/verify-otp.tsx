@@ -24,6 +24,9 @@ export default function VerifyOtpScreen() {
 
   const [code, setCode] = useState<string[]>(['', '', '', '', '', '']);
   const [secondsLeft, setSecondsLeft] = useState(45);
+  const [hasError, setHasError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
 
   useEffect(() => {
     if (secondsLeft <= 0) return;
@@ -33,14 +36,44 @@ export default function VerifyOtpScreen() {
     return () => clearInterval(timer);
   }, [secondsLeft]);
 
-  const handleVerify = () => {
-    // Navigate to Review Status screen
-    router.push('/review-status' as any);
+  const handleVerify = (otpInput?: string) => {
+    const entered = (otpInput || code.join('')).trim();
+    if (entered.length < 6) {
+      setHasError(true);
+      setErrorMessage('Please enter all 6 digits.');
+      return;
+    }
+
+    setIsVerifying(true);
+
+    // Standard valid demo OTP is 123456
+    if (entered === '123456') {
+      setHasError(false);
+      setErrorMessage('');
+      setTimeout(() => {
+        setIsVerifying(false);
+        router.replace('/review-status' as any);
+      }, 350);
+    } else {
+      // Incorrect OTP: Trigger shake, red border, then auto-delete & blank the box
+      setHasError(true);
+      setErrorMessage('Incorrect OTP! Please enter 123456.');
+      setIsVerifying(false);
+
+      setTimeout(() => {
+        // Auto blank and reset the boxes
+        setCode(['', '', '', '', '', '']);
+        setHasError(false);
+      }, 750);
+    }
   };
 
   const handleResend = () => {
     if (secondsLeft === 0) {
       setSecondsLeft(45);
+      setHasError(false);
+      setErrorMessage('A fresh verification code has been resent to your email.');
+      setTimeout(() => setErrorMessage(''), 3000);
     }
   };
 
@@ -84,7 +117,7 @@ export default function VerifyOtpScreen() {
                 {"We've sent a 6-digit verification code to"}
               </Text>
               <Text style={styles.emailText}>{displayEmail}</Text>
-              <Text style={styles.subtitle}>Please enter it below to continue.</Text>
+              <Text style={styles.demoHintText}>Demo OTP: 123456</Text>
             </View>
 
             {/* Central Mail Shield Graphic */}
@@ -94,8 +127,30 @@ export default function VerifyOtpScreen() {
             <View style={styles.otpSection}>
               <Text style={styles.otpLabel}>Enter 6-digit code</Text>
 
-              {/* 6 Digit Input Boxes */}
-              <OtpInput code={code} setCode={setCode} length={6} />
+              {/* 6 Digit Input Boxes with Shake, Auto-Dismiss Keyboard, and Auto-Confirm */}
+              <OtpInput
+                code={code}
+                setCode={setCode}
+                length={6}
+                hasError={hasError}
+                onComplete={(fullCode) => handleVerify(fullCode)}
+                disabled={isVerifying}
+              />
+
+              {/* Dynamic Error / Hint Feedback */}
+              {errorMessage ? (
+                <View style={styles.errorContainer}>
+                  <Ionicons
+                    name={hasError ? 'alert-circle' : 'checkmark-circle'}
+                    size={16}
+                    color={hasError ? '#DC2626' : '#16A34A'}
+                    style={{ marginRight: 6 }}
+                  />
+                  <Text style={[styles.errorText, !hasError && { color: '#16A34A' }]}>
+                    {errorMessage}
+                  </Text>
+                </View>
+              ) : null}
 
               {/* Resend Timer Row */}
               <Pressable
@@ -117,13 +172,17 @@ export default function VerifyOtpScreen() {
 
               {/* Verify & Continue Button */}
               <Pressable
-                onPress={handleVerify}
+                onPress={() => handleVerify()}
+                disabled={isVerifying}
                 style={({ pressed }) => [
                   styles.verifyButton,
                   pressed && styles.verifyButtonPressed,
+                  isVerifying && { opacity: 0.7 },
                 ]}
               >
-                <Text style={styles.verifyButtonText}>Verify & Continue</Text>
+                <Text style={styles.verifyButtonText}>
+                  {isVerifying ? 'Verifying...' : 'Verify & Continue'}
+                </Text>
               </Pressable>
 
               {/* Secure Verification Info Box */}
@@ -206,6 +265,34 @@ const styles = StyleSheet.create({
     color: '#0052FF',
     marginVertical: 2,
     textAlign: 'center',
+  },
+  demoHintText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#16A34A',
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 12,
+    marginTop: 6,
+    overflow: 'hidden',
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    marginVertical: 6,
+  },
+  errorText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#DC2626',
   },
   otpSection: {
     marginTop: 6,

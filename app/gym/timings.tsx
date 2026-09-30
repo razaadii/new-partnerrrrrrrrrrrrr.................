@@ -17,15 +17,18 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ThemedAlert } from '../../components/ThemedAlert';
+import { ThemedBottomSheet } from '../../components/ThemedBottomSheet';
 import { api } from '../../services/api';
 
 export default function GymTimingsScreen() {
   const router = useRouter();
 
-  const [timings, setTimings] = useState<any[]>([]);
-  const [openingTime, setOpeningTime] = useState('06:00 AM');
-  const [closingTime, setClosingTime] = useState('10:00 PM');
-  const [loading, setLoading] = useState(true);
+  const initialTimings = api.gym.getInitialTimings().data;
+  const [timings, setTimings] = useState<any[]>(() => initialTimings.slots);
+  const [openingTime, setOpeningTime] = useState(() => initialTimings.opening_time);
+  const [closingTime, setClosingTime] = useState(() => initialTimings.closing_time);
+  const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   // Slot Modal State
@@ -44,9 +47,56 @@ export default function GymTimingsScreen() {
   const [editCloseTime, setEditCloseTime] = useState('');
   const [savingHours, setSavingHours] = useState(false);
 
+  // Themed Alert State
+  const [alertConfig, setAlertConfig] = useState<{
+    visible: boolean;
+    type: 'success' | 'warning' | 'danger' | 'info' | 'confirm';
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    showCancel?: boolean;
+    onConfirm: () => void;
+    onCancel?: () => void;
+  }>({
+    visible: false,
+    type: 'info',
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
+  const showAlert = (
+    type: 'success' | 'warning' | 'danger' | 'info' | 'confirm',
+    title: string,
+    message: string,
+    onConfirm?: () => void,
+    showCancel = false,
+    confirmText = 'OK',
+    cancelText = 'Cancel',
+    onCancel?: () => void
+  ) => {
+    setAlertConfig({
+      visible: true,
+      type,
+      title,
+      message,
+      confirmText,
+      cancelText,
+      showCancel,
+      onConfirm: () => {
+        setAlertConfig((prev) => ({ ...prev, visible: false }));
+        if (onConfirm) onConfirm();
+      },
+      onCancel: () => {
+        setAlertConfig((prev) => ({ ...prev, visible: false }));
+        if (onCancel) onCancel();
+      },
+    });
+  };
+
   const fetchTimings = useCallback(async () => {
     try {
-      setLoading(true);
       const res = await api.gym.getTimings();
       if (res && res.success) {
         setTimings(res.data?.slots || []);
@@ -109,7 +159,7 @@ export default function GymTimingsScreen() {
 
         if (res && res.success) {
           setModalVisible(false);
-          Alert.alert('Updated', 'Timing slot updated successfully!');
+          showAlert('success', 'Slot Updated', 'Timing slot updated successfully!');
           fetchTimings();
         } else {
           setFormError(res?.message || 'Failed to update slot.');
@@ -124,7 +174,7 @@ export default function GymTimingsScreen() {
 
         if (res && res.success) {
           setModalVisible(false);
-          Alert.alert('Success', 'Timing slot added successfully!');
+          showAlert('success', 'Slot Added', 'Timing slot added successfully!');
           fetchTimings();
         } else {
           setFormError(res?.message || 'Failed to add slot.');
@@ -138,29 +188,26 @@ export default function GymTimingsScreen() {
   };
 
   const handleDeleteSlot = (slot: any) => {
-    Alert.alert(
+    showAlert(
+      'danger',
       'Remove Slot Timing',
       `Are you sure you want to remove "${slot.label}"?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const res = await api.gym.deleteTiming(slot.id);
-              if (res && res.success) {
-                Alert.alert('Removed', 'Timing slot removed.');
-                fetchTimings();
-              } else {
-                Alert.alert('Notice', res?.message || 'Failed to remove slot.');
-              }
-            } catch (e) {
-              Alert.alert('Error', 'Failed to remove slot.');
-            }
-          },
-        },
-      ]
+      async () => {
+        try {
+          const res = await api.gym.deleteTiming(slot.id);
+          if (res && res.success) {
+            showAlert('success', 'Slot Removed', 'Timing slot removed.');
+            fetchTimings();
+          } else {
+            showAlert('warning', 'Notice', res?.message || 'Failed to remove slot.');
+          }
+        } catch (e) {
+          showAlert('danger', 'Error', 'Failed to remove slot.');
+        }
+      },
+      true,
+      'Remove',
+      'Cancel'
     );
   };
 
@@ -189,12 +236,12 @@ export default function GymTimingsScreen() {
         setOpeningTime(editOpenTime.trim());
         setClosingTime(editCloseTime.trim());
         setHoursModalVisible(false);
-        Alert.alert('Success', 'Gym operating hours updated!');
+        showAlert('success', 'Hours Updated', 'Gym operating hours updated!');
       } else {
-        Alert.alert('Notice', res?.message || 'Could not update hours.');
+        showAlert('warning', 'Notice', res?.message || 'Could not update hours.');
       }
     } catch (e) {
-      Alert.alert('Error', 'Failed to update gym hours.');
+      showAlert('danger', 'Error', 'Failed to update gym hours.');
     } finally {
       setSavingHours(false);
     }
@@ -312,6 +359,7 @@ export default function GymTimingsScreen() {
           </View>
         ) : (
           <FlatList
+            style={styles.flex1}
             data={timings}
             keyExtractor={(item) => String(item.id)}
             renderItem={renderSlotItem}
@@ -339,177 +387,176 @@ export default function GymTimingsScreen() {
           />
         )}
 
-        {/* Add/Edit Slot Modal */}
-        <Modal
+        {/* Add/Edit Slot Themed Bottom Sheet */}
+        <ThemedBottomSheet
           visible={modalVisible}
-          animationType="slide"
-          transparent={true}
-          onRequestClose={() => setModalVisible(false)}
+          onClose={() => setModalVisible(false)}
+          title={editingSlotId ? 'Edit Timing Slot' : 'Add New Timing Slot'}
+          subtitle="Configure batch name, operating times, and status"
+          icon="time-outline"
+          iconColor="#0052FF"
+          maxHeight="85%"
         >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>
-                  {editingSlotId ? 'Edit Timing Slot' : 'Add New Timing Slot'}
-                </Text>
-                <Pressable onPress={() => setModalVisible(false)} hitSlop={8}>
-                  <Ionicons name="close" size={24} color="#64748B" />
-                </Pressable>
+          <ScrollView contentContainerStyle={styles.formScroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            {formError ? (
+              <View style={styles.modalErrorBox}>
+                <Ionicons name="alert-circle" size={16} color="#DC2626" />
+                <Text style={styles.modalErrorText}>{formError}</Text>
               </View>
+            ) : null}
 
-              {formError ? (
-                <View style={styles.modalErrorBox}>
-                  <Ionicons name="alert-circle" size={16} color="#DC2626" />
-                  <Text style={styles.modalErrorText}>{formError}</Text>
-                </View>
-              ) : null}
+            {/* Batch Name */}
+            <Text style={styles.inputLabel}>Batch / Slot Name *</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="e.g. Early Birds Batch, Evening Peak"
+              value={label}
+              onChangeText={setLabel}
+              placeholderTextColor="#94A3B8"
+            />
 
-              <ScrollView contentContainerStyle={styles.formScroll} showsVerticalScrollIndicator={false}>
-                {/* Batch Name */}
-                <Text style={styles.inputLabel}>Batch / Slot Name *</Text>
+            {/* Start & End Times */}
+            <View style={styles.dualRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.inputLabel}>Start Time *</Text>
                 <TextInput
                   style={styles.modalInput}
-                  placeholder="e.g. Early Birds Batch, Evening Peak"
-                  value={label}
-                  onChangeText={setLabel}
+                  placeholder="e.g. 06:00 AM"
+                  value={startTime}
+                  onChangeText={setStartTime}
                   placeholderTextColor="#94A3B8"
                 />
+              </View>
 
-                {/* Start & End Times */}
-                <View style={styles.dualRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.inputLabel}>Start Time *</Text>
-                    <TextInput
-                      style={styles.modalInput}
-                      placeholder="e.g. 06:00 AM"
-                      value={startTime}
-                      onChangeText={setStartTime}
-                      placeholderTextColor="#94A3B8"
-                    />
-                  </View>
-
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.inputLabel}>End Time *</Text>
-                    <TextInput
-                      style={styles.modalInput}
-                      placeholder="e.g. 08:00 AM"
-                      value={endTime}
-                      onChangeText={setEndTime}
-                      placeholderTextColor="#94A3B8"
-                    />
-                  </View>
-                </View>
-
-                {/* Status Toggle */}
-                <Text style={styles.inputLabel}>Status</Text>
-                <View style={styles.statusToggleRow}>
-                  <Pressable
-                    onPress={() => setStatus('active')}
-                    style={[styles.statusToggleBtn, status === 'active' && styles.statusToggleActive]}
-                  >
-                    <Text
-                      style={[
-                        styles.statusToggleText,
-                        status === 'active' && styles.statusToggleTextActive,
-                      ]}
-                    >
-                      Active
-                    </Text>
-                  </Pressable>
-
-                  <Pressable
-                    onPress={() => setStatus('inactive')}
-                    style={[styles.statusToggleBtn, status === 'inactive' && styles.statusToggleInactive]}
-                  >
-                    <Text
-                      style={[
-                        styles.statusToggleText,
-                        status === 'inactive' && styles.statusToggleTextActive,
-                      ]}
-                    >
-                      Inactive
-                    </Text>
-                  </Pressable>
-                </View>
-
-                {/* Submit Button */}
-                <Pressable
-                  onPress={handleSaveSlot}
-                  disabled={submitting}
-                  style={({ pressed }) => [
-                    styles.submitButton,
-                    pressed && styles.submitButtonPressed,
-                    submitting && styles.submitButtonDisabled,
-                  ]}
-                >
-                  {submitting ? (
-                    <ActivityIndicator color="#FFFFFF" size="small" />
-                  ) : (
-                    <Text style={styles.submitButtonText}>
-                      {editingSlotId ? 'Save Changes' : 'Create Timing Slot'}
-                    </Text>
-                  )}
-                </Pressable>
-              </ScrollView>
-            </View>
-          </View>
-        </Modal>
-
-        {/* Edit General Hours Modal */}
-        <Modal
-          visible={hoursModalVisible}
-          animationType="fade"
-          transparent={true}
-          onRequestClose={() => setHoursModalVisible(false)}
-        >
-          <View style={styles.modalOverlayCenter}>
-            <View style={styles.modalBoxCenter}>
-              <Text style={styles.modalTitle}>Edit Operating Hours</Text>
-              <Text style={styles.modalSubtitle}>
-                General daily gym opening & closing timings
-              </Text>
-
-              <Text style={styles.inputLabel}>Gym Opening Time</Text>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="e.g. 06:00 AM"
-                value={editOpenTime}
-                onChangeText={setEditOpenTime}
-                placeholderTextColor="#94A3B8"
-              />
-
-              <Text style={styles.inputLabel}>Gym Closing Time</Text>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="e.g. 10:00 PM"
-                value={editCloseTime}
-                onChangeText={setEditCloseTime}
-                placeholderTextColor="#94A3B8"
-              />
-
-              <View style={styles.hoursBtnRow}>
-                <Pressable
-                  onPress={() => setHoursModalVisible(false)}
-                  style={styles.cancelBtn}
-                >
-                  <Text style={styles.cancelBtnText}>Cancel</Text>
-                </Pressable>
-
-                <Pressable
-                  onPress={handleSaveHours}
-                  disabled={savingHours}
-                  style={styles.confirmBtn}
-                >
-                  {savingHours ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <Text style={styles.confirmBtnText}>Save Hours</Text>
-                  )}
-                </Pressable>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.inputLabel}>End Time *</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="e.g. 08:00 AM"
+                  value={endTime}
+                  onChangeText={setEndTime}
+                  placeholderTextColor="#94A3B8"
+                />
               </View>
             </View>
+
+            {/* Status Toggle */}
+            <Text style={styles.inputLabel}>Status</Text>
+            <View style={styles.statusToggleRow}>
+              <Pressable
+                onPress={() => setStatus('active')}
+                style={[styles.statusToggleBtn, status === 'active' && styles.statusToggleActive]}
+              >
+                <Text
+                  style={[
+                    styles.statusToggleText,
+                    status === 'active' && styles.statusToggleTextActive,
+                  ]}
+                >
+                  Active
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => setStatus('inactive')}
+                style={[styles.statusToggleBtn, status === 'inactive' && styles.statusToggleInactive]}
+              >
+                <Text
+                  style={[
+                    styles.statusToggleText,
+                    status === 'inactive' && styles.statusToggleTextActive,
+                  ]}
+                >
+                  Inactive
+                </Text>
+              </Pressable>
+            </View>
+
+            {/* Submit Button */}
+            <Pressable
+              onPress={handleSaveSlot}
+              disabled={submitting}
+              style={({ pressed }) => [
+                styles.submitButton,
+                pressed && styles.submitButtonPressed,
+                submitting && styles.submitButtonDisabled,
+              ]}
+            >
+              {submitting ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={styles.submitButtonText}>
+                  {editingSlotId ? 'Save Changes' : 'Create Timing Slot'}
+                </Text>
+              )}
+            </Pressable>
+          </ScrollView>
+        </ThemedBottomSheet>
+
+        {/* Edit General Hours Themed Bottom Sheet */}
+        <ThemedBottomSheet
+          visible={hoursModalVisible}
+          onClose={() => setHoursModalVisible(false)}
+          title="Edit Operating Hours"
+          subtitle="Set general daily gym opening & closing timings"
+          icon="business-outline"
+          iconColor="#0052FF"
+          maxHeight="60%"
+        >
+          <View style={{ paddingHorizontal: 20, paddingTop: 14, paddingBottom: 24 }}>
+            <Text style={styles.inputLabel}>Gym Opening Time</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="e.g. 06:00 AM"
+              value={editOpenTime}
+              onChangeText={setEditOpenTime}
+              placeholderTextColor="#94A3B8"
+            />
+
+            <Text style={styles.inputLabel}>Gym Closing Time</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="e.g. 10:00 PM"
+              value={editCloseTime}
+              onChangeText={setEditCloseTime}
+              placeholderTextColor="#94A3B8"
+            />
+
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
+              <Pressable
+                onPress={() => setHoursModalVisible(false)}
+                style={styles.cancelBtn}
+              >
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={handleSaveHours}
+                disabled={savingHours}
+                style={styles.confirmBtn}
+              >
+                {savingHours ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.confirmBtnText}>Save Hours</Text>
+                )}
+              </Pressable>
+            </View>
           </View>
-        </Modal>
+        </ThemedBottomSheet>
+
+        {/* Global Themed Alert Dialog */}
+        <ThemedAlert
+          visible={alertConfig.visible}
+          type={alertConfig.type}
+          title={alertConfig.title}
+          message={alertConfig.message}
+          confirmText={alertConfig.confirmText}
+          cancelText={alertConfig.cancelText}
+          showCancel={alertConfig.showCancel}
+          onConfirm={alertConfig.onConfirm}
+          onCancel={alertConfig.onCancel}
+        />
       </SafeAreaView>
     </View>
   );
@@ -521,6 +568,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
   },
   safeArea: {
+    flex: 1,
+  },
+  flex1: {
     flex: 1,
   },
   header: {

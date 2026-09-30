@@ -1,6 +1,15 @@
 <?php
 // backend/utils/response.php
-// Consistent JSON response helpers for SlotB REST API
+// Consistent JSON response helpers and CORS headers for SlotB REST API
+
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Accept");
+
+if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit();
+}
 
 if (!function_exists('jsonSuccess')) {
     function jsonSuccess($data = null, $message = 'Success', $statusCode = 200) {

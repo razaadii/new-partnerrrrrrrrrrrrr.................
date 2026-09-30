@@ -10,6 +10,7 @@ import {
   Platform,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -17,20 +18,22 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GymBottomTabBar } from '../../components/GymBottomTabBar';
+import { ThemedAlert } from '../../components/ThemedAlert';
+import { ThemedBottomSheet } from '../../components/ThemedBottomSheet';
 import { api } from '../../services/api';
 
 export default function GymMembersScreen() {
   const router = useRouter();
 
-  const [members, setMembers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [members, setMembers] = useState<any[]>(() => api.gym.getInitialMembers().data.members);
+  const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive' | 'due'>('all');
 
   // Add Member Modal State
   const [modalVisible, setModalVisible] = useState(false);
-  const [plans, setPlans] = useState<any[]>([]);
+  const [plans, setPlans] = useState<any[]>(() => api.gym.getInitialPlans().data);
   const [submitting, setSubmitting] = useState(false);
 
   // Form fields
@@ -43,15 +46,72 @@ export default function GymMembersScreen() {
   const [paymentStatus, setPaymentStatus] = useState('paid');
   const [formError, setFormError] = useState('');
 
+  // Themed Alert State
+  const [alertConfig, setAlertConfig] = useState<{
+    visible: boolean;
+    type: 'success' | 'warning' | 'danger' | 'info' | 'confirm';
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    showCancel?: boolean;
+    onConfirm: () => void;
+    onCancel?: () => void;
+  }>({
+    visible: false,
+    type: 'info',
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
+  const showAlert = (
+    type: 'success' | 'warning' | 'danger' | 'info' | 'confirm',
+    title: string,
+    message: string,
+    onConfirm?: () => void,
+    showCancel = false,
+    confirmText = 'OK',
+    cancelText = 'Cancel',
+    onCancel?: () => void
+  ) => {
+    setAlertConfig({
+      visible: true,
+      type,
+      title,
+      message,
+      confirmText,
+      cancelText,
+      showCancel,
+      onConfirm: () => {
+        setAlertConfig((prev) => ({ ...prev, visible: false }));
+        if (onConfirm) onConfirm();
+      },
+      onCancel: () => {
+        setAlertConfig((prev) => ({ ...prev, visible: false }));
+        if (onCancel) onCancel();
+      },
+    });
+  };
+
   const fetchMembers = useCallback(async () => {
     try {
-      setLoading(true);
+      // Instant local filter in 0ms
+      const local = api.gym.getInitialMembers({
+        q: searchQuery,
+        status: activeFilter === 'all' ? undefined : activeFilter,
+      });
+      if (local?.data?.members) {
+        setMembers(local.data.members);
+      }
+
+      // Background sync if online
       const res = await api.gym.getMembers({
         q: searchQuery,
         status: activeFilter === 'all' ? undefined : activeFilter,
       });
-      if (res && res.success) {
-        setMembers(res.data?.members || []);
+      if (res && res.success && res.data?.members) {
+        setMembers(res.data.members);
       }
     } catch (e) {
       console.warn('Fetch members error:', e);
@@ -116,7 +176,7 @@ export default function GymMembersScreen() {
 
       if (res && res.success) {
         setModalVisible(false);
-        Alert.alert('Success', `Member ${name} added successfully!`);
+        showAlert('success', 'Member Registered', `Member ${name} added successfully!`);
         fetchMembers();
       } else {
         setFormError(res?.message || 'Failed to add member.');
@@ -128,72 +188,54 @@ export default function GymMembersScreen() {
     }
   };
 
-  const renderMemberItem = ({ item }: { item: any }) => (
-    <Pressable
-      onPress={() => router.push(`/gym/member-detail?id=${item.id}` as any)}
-      style={({ pressed }) => [styles.memberCard, pressed && styles.cardPressed]}
-    >
-      <View style={styles.cardMain}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{item.name.charAt(0).toUpperCase()}</Text>
-        </View>
+  const renderMemberItem = ({ item }: { item: any }) => {
+    const isPaid = item.last_payment_status === 'paid';
+    return (
+      <Pressable
+        onPress={() => router.push(`/gym/member-detail?id=${item.id}` as any)}
+        style={({ pressed }) => [styles.memberCard, pressed && styles.cardPressed]}
+      >
+        <View style={styles.cardMain}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{item.name.charAt(0).toUpperCase()}</Text>
+          </View>
 
-        <View style={styles.infoCol}>
-          <View style={styles.nameLine}>
-            <Text style={styles.memberName} numberOfLines={1}>
-              {item.name}
+          <View style={styles.infoCol}>
+            <View style={styles.nameLine}>
+              <Text style={styles.memberName} numberOfLines={1}>
+                {item.name}
+              </Text>
+            </View>
+
+            <Text style={styles.memberSub} numberOfLines={1}>
+              {item.plan_name || 'Standard Plan'} • {item.mobile}
             </Text>
+
+            <Text style={styles.joinDateText}>Joined: {item.joining_date}</Text>
+          </View>
+
+          <View style={styles.rightCol}>
             <View
               style={[
-                styles.statusBadge,
-                item.status === 'active' ? styles.badgeActive : styles.badgeInactive,
+                styles.paymentBadge,
+                isPaid ? styles.paymentPaid : styles.paymentDue,
               ]}
             >
               <Text
                 style={[
-                  styles.statusText,
-                  item.status === 'active' ? styles.statusActiveText : styles.statusInactiveText,
+                  styles.paymentBadgeText,
+                  isPaid ? styles.paymentPaidText : styles.paymentDueText,
                 ]}
               >
-                {item.status}
+                {isPaid ? 'Paid' : 'Fee Due'}
               </Text>
             </View>
-          </View>
-
-          <Text style={styles.memberContact}>
-            <Ionicons name="call-outline" size={12} color="#64748B" /> {item.mobile}
-          </Text>
-
-          <View style={styles.metaRow}>
-            <View style={styles.planPill}>
-              <Ionicons name="barbell-outline" size={11} color="#0052FF" />
-              <Text style={styles.planPillText}>{item.plan_name || 'No Plan'}</Text>
-            </View>
-            <Text style={styles.joinDateText}>Joined: {item.joining_date}</Text>
+            <Ionicons name="chevron-forward" size={16} color="#CBD5E1" style={{ marginTop: 8 }} />
           </View>
         </View>
-
-        <View style={styles.rightCol}>
-          <View
-            style={[
-              styles.paymentBadge,
-              item.last_payment_status === 'paid' ? styles.paymentPaid : styles.paymentDue,
-            ]}
-          >
-            <Text
-              style={[
-                styles.paymentBadgeText,
-                item.last_payment_status === 'paid' ? styles.paymentPaidText : styles.paymentDueText,
-              ]}
-            >
-              {item.last_payment_status === 'paid' ? 'Paid' : 'Fee Due'}
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={16} color="#CBD5E1" style={{ marginTop: 12 }} />
-        </View>
-      </View>
-    </Pressable>
-  );
+      </Pressable>
+    );
+  };
 
   return (
     <View style={styles.screen}>
@@ -261,8 +303,9 @@ export default function GymMembersScreen() {
           </View>
         ) : (
           <FlatList
+            style={styles.flex1}
             data={members}
-            keyExtractor={(item) => String(item.id)}
+            keyExtractor={(item, index) => String(item.id || item.member_id || index)}
             renderItem={renderMemberItem}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
@@ -291,168 +334,171 @@ export default function GymMembersScreen() {
           />
         )}
 
-        {/* Add Member Modal */}
-        <Modal
+        {/* Add Member Themed Bottom Sheet */}
+        <ThemedBottomSheet
           visible={modalVisible}
-          animationType="slide"
-          transparent={true}
-          onRequestClose={() => setModalVisible(false)}
+          onClose={() => setModalVisible(false)}
+          title="Add New Member"
+          subtitle="Register member and assign membership package"
+          icon="person-add-outline"
+          iconColor="#0052FF"
+          maxHeight="90%"
         >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Add New Member</Text>
-                <Pressable onPress={() => setModalVisible(false)} hitSlop={8}>
-                  <Ionicons name="close" size={24} color="#64748B" />
-                </Pressable>
+          <ScrollView
+            contentContainerStyle={styles.formContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {formError ? (
+              <View style={styles.modalErrorBox}>
+                <Ionicons name="alert-circle" size={16} color="#DC2626" />
+                <Text style={styles.modalErrorText}>{formError}</Text>
               </View>
+            ) : null}
 
-              {formError ? (
-                <View style={styles.modalErrorBox}>
-                  <Ionicons name="alert-circle" size={16} color="#DC2626" />
-                  <Text style={styles.modalErrorText}>{formError}</Text>
-                </View>
-              ) : null}
+            {/* Full Name */}
+            <Text style={styles.inputLabel}>Full Name *</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="e.g. Rahul Sharma"
+              value={name}
+              onChangeText={setName}
+              placeholderTextColor="#94A3B8"
+            />
 
-              <FlatList
-                data={[]}
-                renderItem={null}
-                ListHeaderComponent={
-                  <View style={styles.formContent}>
-                    {/* Full Name */}
-                    <Text style={styles.inputLabel}>Full Name *</Text>
-                    <TextInput
-                      style={styles.modalInput}
-                      placeholder="e.g. Rahul Sharma"
-                      value={name}
-                      onChangeText={setName}
-                      placeholderTextColor="#94A3B8"
-                    />
+            {/* Mobile Number */}
+            <Text style={styles.inputLabel}>Mobile Number *</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="e.g. +91 98765 43210"
+              value={mobile}
+              onChangeText={setMobile}
+              keyboardType="phone-pad"
+              placeholderTextColor="#94A3B8"
+            />
 
-                    {/* Mobile Number */}
-                    <Text style={styles.inputLabel}>Mobile Number *</Text>
-                    <TextInput
-                      style={styles.modalInput}
-                      placeholder="e.g. +91 98765 43210"
-                      value={mobile}
-                      onChangeText={setMobile}
-                      keyboardType="phone-pad"
-                      placeholderTextColor="#94A3B8"
-                    />
+            {/* Email */}
+            <Text style={styles.inputLabel}>Email Address (Optional)</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="e.g. rahul@example.com"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              placeholderTextColor="#94A3B8"
+            />
 
-                    {/* Email */}
-                    <Text style={styles.inputLabel}>Email Address (Optional)</Text>
-                    <TextInput
-                      style={styles.modalInput}
-                      placeholder="e.g. rahul@example.com"
-                      value={email}
-                      onChangeText={setEmail}
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                      placeholderTextColor="#94A3B8"
-                    />
+            {/* Joining Date */}
+            <Text style={styles.inputLabel}>Joining Date (YYYY-MM-DD)</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={joiningDate}
+              onChangeText={setJoiningDate}
+              placeholderTextColor="#94A3B8"
+            />
 
-                    {/* Joining Date */}
-                    <Text style={styles.inputLabel}>Joining Date (YYYY-MM-DD)</Text>
-                    <TextInput
-                      style={styles.modalInput}
-                      value={joiningDate}
-                      onChangeText={setJoiningDate}
-                      placeholderTextColor="#94A3B8"
-                    />
-
-                    {/* Select Membership Plan */}
-                    <Text style={styles.inputLabel}>Membership Plan</Text>
-                    <View style={styles.planSelector}>
-                      {plans.map((p) => (
-                        <Pressable
-                          key={`sel-${p.id}`}
-                          onPress={() => setSelectedPlanId(p.id)}
-                          style={[
-                            styles.planOption,
-                            selectedPlanId === p.id && styles.planOptionActive,
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.planOptionTitle,
-                              selectedPlanId === p.id && styles.planOptionTitleActive,
-                            ]}
-                          >
-                            {p.name}
-                          </Text>
-                          <Text
-                            style={[
-                              styles.planOptionFee,
-                              selectedPlanId === p.id && styles.planOptionFeeActive,
-                            ]}
-                          >
-                            ₹{Number(p.fee).toLocaleString('en-IN')}
-                          </Text>
-                        </Pressable>
-                      ))}
-                    </View>
-
-                    {/* Initial Payment Status */}
-                    <Text style={styles.inputLabel}>Initial Payment</Text>
-                    <View style={styles.rowToggle}>
-                      <Pressable
-                        onPress={() => setPaymentStatus('paid')}
-                        style={[
-                          styles.toggleBtn,
-                          paymentStatus === 'paid' && styles.toggleBtnActive,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.toggleText,
-                            paymentStatus === 'paid' && styles.toggleTextActive,
-                          ]}
-                        >
-                          Paid (Active Receipt)
-                        </Text>
-                      </Pressable>
-
-                      <Pressable
-                        onPress={() => setPaymentStatus('due')}
-                        style={[
-                          styles.toggleBtn,
-                          paymentStatus === 'due' && styles.toggleBtnActiveDue,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.toggleText,
-                            paymentStatus === 'due' && styles.toggleTextActiveDue,
-                          ]}
-                        >
-                          Mark as Due
-                        </Text>
-                      </Pressable>
-                    </View>
-
-                    {/* Submit Button */}
-                    <Pressable
-                      onPress={handleCreateMember}
-                      disabled={submitting}
-                      style={({ pressed }) => [
-                        styles.submitButton,
-                        pressed && styles.submitButtonPressed,
-                        submitting && styles.submitButtonDisabled,
-                      ]}
-                    >
-                      {submitting ? (
-                        <ActivityIndicator color="#FFFFFF" size="small" />
-                      ) : (
-                        <Text style={styles.submitButtonText}>Save & Register Member</Text>
-                      )}
-                    </Pressable>
-                  </View>
-                }
-              />
+            {/* Select Membership Plan */}
+            <Text style={styles.inputLabel}>Membership Plan</Text>
+            <View style={styles.planSelector}>
+              {plans.map((p, idx) => (
+                <Pressable
+                  key={`sel-${p.id || idx}`}
+                  onPress={() => setSelectedPlanId(p.id)}
+                  style={[
+                    styles.planOption,
+                    selectedPlanId === p.id && styles.planOptionActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.planOptionTitle,
+                      selectedPlanId === p.id && styles.planOptionTitleActive,
+                    ]}
+                  >
+                    {p.name}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.planOptionFee,
+                      selectedPlanId === p.id && styles.planOptionFeeActive,
+                    ]}
+                  >
+                    ₹{Number(p.fee).toLocaleString('en-IN')}
+                  </Text>
+                </Pressable>
+              ))}
             </View>
-          </View>
-        </Modal>
+
+            {/* Initial Payment Status */}
+            <Text style={styles.inputLabel}>Initial Payment</Text>
+            <View style={styles.rowToggle}>
+              <Pressable
+                onPress={() => setPaymentStatus('paid')}
+                style={[
+                  styles.toggleBtn,
+                  paymentStatus === 'paid' && styles.toggleBtnActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.toggleText,
+                    paymentStatus === 'paid' && styles.toggleTextActive,
+                  ]}
+                >
+                  Paid (Active Receipt)
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => setPaymentStatus('due')}
+                style={[
+                  styles.toggleBtn,
+                  paymentStatus === 'due' && styles.toggleBtnActiveDue,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.toggleText,
+                    paymentStatus === 'due' && styles.toggleTextActiveDue,
+                  ]}
+                >
+                  Mark as Due
+                </Text>
+              </Pressable>
+            </View>
+
+            {/* Submit Button */}
+            <Pressable
+              onPress={handleCreateMember}
+              disabled={submitting}
+              style={({ pressed }) => [
+                styles.submitButton,
+                pressed && styles.submitButtonPressed,
+                submitting && styles.submitButtonDisabled,
+              ]}
+            >
+              {submitting ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={styles.submitButtonText}>Save & Register Member</Text>
+              )}
+            </Pressable>
+          </ScrollView>
+        </ThemedBottomSheet>
+
+        {/* Global Themed Alert Dialog */}
+        <ThemedAlert
+          visible={alertConfig.visible}
+          type={alertConfig.type}
+          title={alertConfig.title}
+          message={alertConfig.message}
+          confirmText={alertConfig.confirmText}
+          cancelText={alertConfig.cancelText}
+          showCancel={alertConfig.showCancel}
+          onConfirm={alertConfig.onConfirm}
+          onCancel={alertConfig.onCancel}
+        />
 
         {/* Bottom Tab Bar */}
         <GymBottomTabBar activeTab="members" />
@@ -467,6 +513,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
   },
   safeArea: {
+    flex: 1,
+  },
+  flex1: {
     flex: 1,
   },
   header: {
@@ -636,16 +685,16 @@ const styles = StyleSheet.create({
   statusInactiveText: {
     color: '#64748B',
   },
+  memberSub: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+    marginBottom: 2,
+  },
   memberContact: {
     fontSize: 12,
     color: '#64748B',
     marginTop: 2,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 6,
   },
   planPill: {
     flexDirection: 'row',

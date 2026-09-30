@@ -1,9 +1,8 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React from 'react';
+import React, { useState } from 'react';
 import {
-  Alert,
   Linking,
   Pressable,
   ScrollView,
@@ -14,9 +13,70 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, G, Path, Polygon } from 'react-native-svg';
 import { BottomTabBar } from '../components/BottomTabBar';
+import { ThemedAlert } from '../components/ThemedAlert';
+import { api } from '../services/api';
 
 export default function LocationVerifiedScreen() {
   const router = useRouter();
+
+  const partner = api.getCurrentPartner() || api.getInitialPartner();
+  const activeJob = api.getInitialJobs('active', partner?.login_id).jobs[0] || {
+    id: 'SR101',
+    serviceTitle: 'Service Job',
+    customerName: 'Rahul Kumar',
+    customerPhone: '+91 91234 56789',
+    location: 'Barauni, Ward No. 22, Near Power House Road, Begusarai, Bihar - 851101',
+    time: 'Today, 10:30 AM',
+    amount: 699,
+  };
+
+  // Themed Alert State
+  const [alertConfig, setAlertConfig] = useState<{
+    visible: boolean;
+    type: 'success' | 'warning' | 'danger' | 'info' | 'confirm';
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    showCancel?: boolean;
+    onConfirm: () => void;
+    onCancel?: () => void;
+  }>({
+    visible: false,
+    type: 'info',
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
+  const showAlert = (
+    type: 'success' | 'warning' | 'danger' | 'info' | 'confirm',
+    title: string,
+    message: string,
+    onConfirm?: () => void,
+    showCancel = false,
+    confirmText = 'OK',
+    cancelText = 'Cancel',
+    onCancel?: () => void
+  ) => {
+    setAlertConfig({
+      visible: true,
+      type,
+      title,
+      message,
+      confirmText,
+      cancelText,
+      showCancel,
+      onConfirm: () => {
+        setAlertConfig((prev) => ({ ...prev, visible: false }));
+        if (onConfirm) onConfirm();
+      },
+      onCancel: () => {
+        setAlertConfig((prev) => ({ ...prev, visible: false }));
+        if (onCancel) onCancel();
+      },
+    });
+  };
 
   const handleBack = () => {
     router.push('/live-location' as any);
@@ -35,41 +95,35 @@ export default function LocationVerifiedScreen() {
   };
 
   const handleReportIssue = () => {
-    Alert.alert(
-      'Report Issue',
-      'Choose an issue type to report:',
-      [
-        { text: 'Customer Unavailable' },
-        { text: 'Wrong Location' },
-        { text: 'Safety Concern' },
-        { text: 'Cancel', style: 'cancel' },
-      ]
+    showAlert(
+      'confirm',
+      'Report On-Site Issue',
+      'Select issue type:\n\n• Customer Unreachable\n• Incorrect Address / Gate Closed\n• Electrical / Safety Hazard\n\nOur priority partner support team will contact you instantly.',
+      () => {
+        setTimeout(() => {
+          showAlert('success', 'Issue Logged', 'Support executive has been assigned to assist you.');
+        }, 300);
+      },
+      true,
+      'Call Support',
+      'Dismiss'
     );
   };
 
   const handleShieldInfo = () => {
-    Alert.alert(
-      'Verified Location',
-      'The customer PIN matched the booking. Customer identity and location are verified.'
+    showAlert(
+      'success',
+      'Verified Location & Customer',
+      'The 4-digit PIN matched the SlotB booking. Customer identity and GPS coordinates are authenticated.'
     );
   };
 
   const handleMenuOptions = () => {
-    Alert.alert('Job Options', 'Select an action:', [
-      {
-        text: 'Partner Helpline (24/7)',
-        onPress: () => Linking.openURL('tel:1800123456').catch(() => {}),
-      },
-      {
-        text: 'Safety Guidelines',
-        onPress: () =>
-          Alert.alert(
-            'Safety Guidelines',
-            '1. Wear safety gear\n2. Turn off mains power before AC installation\n3. Use certified tools'
-          ),
-      },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+    showAlert(
+      'info',
+      'Partner Safety & Support',
+      '1. Helpline: 1800-123-456 (24/7 Priority)\n2. Wear safety gear & insulated footwear\n3. Turn off main circuit breaker before servicing'
+    );
   };
 
   return (
@@ -174,7 +228,7 @@ export default function LocationVerifiedScreen() {
             {/* Info Block */}
             <View style={styles.customerInfoBlock}>
               <View style={styles.nameVerifiedRow}>
-                <Text style={styles.customerName}>Rahul Kumar</Text>
+                <Text style={styles.customerName}>{activeJob.customerName}</Text>
                 <View style={styles.verifiedBadge}>
                   <Ionicons name="checkmark-circle" size={12} color="#16A34A" style={{ marginRight: 3 }} />
                   <Text style={styles.verifiedBadgeText}>Verified</Text>
@@ -183,15 +237,13 @@ export default function LocationVerifiedScreen() {
 
               <View style={styles.phoneRow}>
                 <Ionicons name="call" size={13} color="#64748B" style={{ marginRight: 4 }} />
-                <Text style={styles.customerPhone}>+91 91234 56789</Text>
+                <Text style={styles.customerPhone}>{activeJob.customerPhone}</Text>
               </View>
 
               <View style={styles.addressRow}>
                 <Ionicons name="location" size={14} color="#64748B" style={{ marginRight: 4, marginTop: 2 }} />
                 <Text style={styles.addressText}>
-                  Barauni, Ward No. 22,{'\n'}
-                  Near Power House Road,{'\n'}
-                  Begusarai, Bihar - 851101
+                  {activeJob.location}
                 </Text>
               </View>
             </View>
@@ -222,21 +274,20 @@ export default function LocationVerifiedScreen() {
           <View style={styles.serviceRow}>
             {/* Service Icon */}
             <View style={styles.serviceIconCircle}>
-              <MaterialCommunityIcons name="air-conditioner" size={26} color="#0052FF" />
-              <Ionicons name="snow" size={11} color="#0052FF" style={styles.miniSnow} />
+              <Ionicons name="shield-checkmark" size={24} color="#0052FF" />
             </View>
 
             {/* Service Info */}
             <View style={styles.serviceInfoBlock}>
-              <Text style={styles.serviceTitle}>AC Installation</Text>
-              <Text style={styles.serviceMeta}>Booking ID <Text style={{ color: '#0F172A', fontWeight: '600' }}>#AC1254</Text></Text>
-              <Text style={styles.serviceMeta}>Scheduled Time <Text style={{ color: '#0F172A', fontWeight: '600' }}>Today, 10:30 AM</Text></Text>
+              <Text style={styles.serviceTitle}>{activeJob.serviceTitle}</Text>
+              <Text style={styles.serviceMeta}>Booking ID <Text style={{ color: '#0F172A', fontWeight: '600' }}>#{activeJob.id}</Text></Text>
+              <Text style={styles.serviceMeta}>Scheduled Time <Text style={{ color: '#0F172A', fontWeight: '600' }}>{activeJob.time || 'Today, 10:30 AM'}</Text></Text>
             </View>
 
             {/* Amount Badge */}
             <View style={styles.amountBadgeBox}>
               <Text style={styles.amountLabel}>Amount</Text>
-              <Text style={styles.amountValue}>₹699</Text>
+              <Text style={styles.amountValue}>₹{activeJob.amount}</Text>
             </View>
           </View>
         </View>
@@ -279,6 +330,18 @@ export default function LocationVerifiedScreen() {
 
       {/* Bottom Navigation Tab Bar */}
       <BottomTabBar activeTab="jobs" />
+
+      <ThemedAlert
+        visible={alertConfig.visible}
+        type={alertConfig.type}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        confirmText={alertConfig.confirmText}
+        cancelText={alertConfig.cancelText}
+        showCancel={alertConfig.showCancel}
+        onConfirm={alertConfig.onConfirm}
+        onCancel={alertConfig.onCancel}
+      />
     </View>
   );
 }

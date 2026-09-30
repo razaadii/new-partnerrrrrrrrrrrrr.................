@@ -10,20 +10,22 @@ import {
   Platform,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { GymBottomTabBar } from '../../components/GymBottomTabBar';
+import { ThemedAlert } from '../../components/ThemedAlert';
+import { ThemedBottomSheet } from '../../components/ThemedBottomSheet';
 import { api } from '../../services/api';
 
 export default function GymPlansScreen() {
   const router = useRouter();
 
-  const [plans, setPlans] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [plans, setPlans] = useState<any[]>(() => api.gym.getInitialPlans().data);
+  const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   // Modal State
@@ -36,9 +38,56 @@ export default function GymPlansScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
 
+  // Themed Alert State
+  const [alertConfig, setAlertConfig] = useState<{
+    visible: boolean;
+    type: 'success' | 'warning' | 'danger' | 'info' | 'confirm';
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    showCancel?: boolean;
+    onConfirm: () => void;
+    onCancel?: () => void;
+  }>({
+    visible: false,
+    type: 'info',
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
+  const showAlert = (
+    type: 'success' | 'warning' | 'danger' | 'info' | 'confirm',
+    title: string,
+    message: string,
+    onConfirm?: () => void,
+    showCancel = false,
+    confirmText = 'OK',
+    cancelText = 'Cancel',
+    onCancel?: () => void
+  ) => {
+    setAlertConfig({
+      visible: true,
+      type,
+      title,
+      message,
+      confirmText,
+      cancelText,
+      showCancel,
+      onConfirm: () => {
+        setAlertConfig((prev) => ({ ...prev, visible: false }));
+        if (onConfirm) onConfirm();
+      },
+      onCancel: () => {
+        setAlertConfig((prev) => ({ ...prev, visible: false }));
+        if (onCancel) onCancel();
+      },
+    });
+  };
+
   const fetchPlans = useCallback(async () => {
     try {
-      setLoading(true);
       const res = await api.gym.getPlans();
       if (res && res.success && Array.isArray(res.data)) {
         setPlans(res.data);
@@ -102,7 +151,7 @@ export default function GymPlansScreen() {
           status,
         });
         if (res && res.success) {
-          Alert.alert('Updated', 'Membership plan updated successfully!');
+          showAlert('success', 'Plan Updated', 'Membership plan updated successfully!');
           setModalVisible(false);
           fetchPlans();
         } else {
@@ -116,7 +165,7 @@ export default function GymPlansScreen() {
           status,
         });
         if (res && res.success) {
-          Alert.alert('Success', 'Membership plan created successfully!');
+          showAlert('success', 'Plan Created', 'Membership plan created successfully!');
           setModalVisible(false);
           fetchPlans();
         } else {
@@ -131,27 +180,26 @@ export default function GymPlansScreen() {
   };
 
   const handleDeletePlan = (plan: any) => {
-    Alert.alert(
-      'Deactivate / Delete Plan',
+    showAlert(
+      'danger',
+      'Deactivate Plan',
       `Are you sure you want to deactivate or remove "${plan.name}"?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Confirm',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const res = await api.gym.deletePlan(plan.id);
-              if (res && res.success) {
-                Alert.alert('Removed', res.message || 'Plan removed.');
-                fetchPlans();
-              }
-            } catch (e) {
-              Alert.alert('Error', 'Failed to delete plan.');
-            }
-          },
-        },
-      ]
+      async () => {
+        try {
+          const res = await api.gym.deletePlan(plan.id);
+          if (res && res.success) {
+            showAlert('success', 'Plan Removed', res.message || 'Plan removed.');
+            fetchPlans();
+          } else {
+            showAlert('warning', 'Notice', res?.message || 'Could not delete plan.');
+          }
+        } catch (e) {
+          showAlert('danger', 'Error', 'Failed to delete plan.');
+        }
+      },
+      true,
+      'Deactivate',
+      'Cancel'
     );
   };
 
@@ -228,9 +276,14 @@ export default function GymPlansScreen() {
       <SafeAreaView style={styles.safeArea}>
         {/* Header */}
         <View style={styles.header}>
-          <View>
-            <Text style={styles.headerTitle}>Membership Plans</Text>
-            <Text style={styles.headerSubtitle}>Manage gym packages & fees</Text>
+          <View style={styles.headerLeftRow}>
+            <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={8}>
+              <Ionicons name="arrow-back" size={22} color="#0F172A" />
+            </Pressable>
+            <View>
+              <Text style={styles.headerTitle}>Membership Plans</Text>
+              <Text style={styles.headerSubtitle}>Manage gym packages & fees</Text>
+            </View>
           </View>
 
           <Pressable
@@ -249,8 +302,9 @@ export default function GymPlansScreen() {
           </View>
         ) : (
           <FlatList
+            style={styles.flex1}
             data={plans}
-            keyExtractor={(item) => String(item.id)}
+            keyExtractor={(item, index) => String(item.id || index)}
             renderItem={renderPlanItem}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
@@ -276,121 +330,125 @@ export default function GymPlansScreen() {
           />
         )}
 
-        {/* Add / Edit Plan Modal */}
-        <Modal
+        {/* Add / Edit Plan Themed Bottom Sheet */}
+        <ThemedBottomSheet
           visible={modalVisible}
-          animationType="slide"
-          transparent={true}
-          onRequestClose={() => setModalVisible(false)}
+          onClose={() => setModalVisible(false)}
+          title={editingPlanId ? 'Edit Membership Plan' : 'Create Membership Plan'}
+          subtitle="Configure package duration, fees, and enrollment status"
+          icon="layers-outline"
+          iconColor="#0052FF"
+          maxHeight="85%"
         >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>
-                  {editingPlanId ? 'Edit Membership Plan' : 'Create Membership Plan'}
-                </Text>
-                <Pressable onPress={() => setModalVisible(false)} hitSlop={8}>
-                  <Ionicons name="close" size={24} color="#64748B" />
-                </Pressable>
+          <ScrollView
+            contentContainerStyle={styles.formContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {formError ? (
+              <View style={styles.errorBox}>
+                <Ionicons name="alert-circle" size={16} color="#DC2626" />
+                <Text style={styles.errorText}>{formError}</Text>
               </View>
+            ) : null}
 
-              {formError ? (
-                <View style={styles.errorBox}>
-                  <Ionicons name="alert-circle" size={16} color="#DC2626" />
-                  <Text style={styles.errorText}>{formError}</Text>
-                </View>
-              ) : null}
+            <Text style={styles.inputLabel}>Plan Name *</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="e.g. Monthly Standard, Annual Pro"
+              value={planName}
+              onChangeText={setPlanName}
+              placeholderTextColor="#94A3B8"
+            />
 
-              <View style={styles.formContent}>
-                <Text style={styles.inputLabel}>Plan Name *</Text>
-                <TextInput
-                  style={styles.modalInput}
-                  placeholder="e.g. Monthly Standard, Annual Pro"
-                  value={planName}
-                  onChangeText={setPlanName}
-                  placeholderTextColor="#94A3B8"
-                />
+            <Text style={styles.inputLabel}>Duration *</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="e.g. 1 Month, 3 Months, 12 Months"
+              value={duration}
+              onChangeText={setDuration}
+              placeholderTextColor="#94A3B8"
+            />
 
-                <Text style={styles.inputLabel}>Duration *</Text>
-                <TextInput
-                  style={styles.modalInput}
-                  placeholder="e.g. 1 Month, 3 Months, 12 Months"
-                  value={duration}
-                  onChangeText={setDuration}
-                  placeholderTextColor="#94A3B8"
-                />
+            <Text style={styles.inputLabel}>Fee Amount (₹) *</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="e.g. 1500"
+              value={fee}
+              onChangeText={setFee}
+              keyboardType="numeric"
+              placeholderTextColor="#94A3B8"
+            />
 
-                <Text style={styles.inputLabel}>Fee Amount (₹) *</Text>
-                <TextInput
-                  style={styles.modalInput}
-                  placeholder="e.g. 1500"
-                  value={fee}
-                  onChangeText={setFee}
-                  keyboardType="numeric"
-                  placeholderTextColor="#94A3B8"
-                />
-
-                <Text style={styles.inputLabel}>Status</Text>
-                <View style={styles.statusToggleRow}>
-                  <Pressable
-                    onPress={() => setStatus('active')}
-                    style={[
-                      styles.statusToggleBtn,
-                      status === 'active' && styles.statusToggleActive,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.statusToggleText,
-                        status === 'active' && styles.statusToggleTextActive,
-                      ]}
-                    >
-                      Active
-                    </Text>
-                  </Pressable>
-
-                  <Pressable
-                    onPress={() => setStatus('inactive')}
-                    style={[
-                      styles.statusToggleBtn,
-                      status === 'inactive' && styles.statusToggleInactive,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.statusToggleText,
-                        status === 'inactive' && styles.statusToggleTextInactive,
-                      ]}
-                    >
-                      Inactive
-                    </Text>
-                  </Pressable>
-                </View>
-
-                <Pressable
-                  onPress={handleSavePlan}
-                  disabled={submitting}
-                  style={({ pressed }) => [
-                    styles.submitButton,
-                    pressed && styles.submitButtonPressed,
-                    submitting && styles.submitButtonDisabled,
+            <Text style={styles.inputLabel}>Enrollment Status</Text>
+            <View style={styles.statusToggleRow}>
+              <Pressable
+                onPress={() => setStatus('active')}
+                style={[
+                  styles.statusToggleBtn,
+                  status === 'active' && styles.statusToggleActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.statusToggleText,
+                    status === 'active' && styles.statusToggleTextActive,
                   ]}
                 >
-                  {submitting ? (
-                    <ActivityIndicator color="#FFFFFF" size="small" />
-                  ) : (
-                    <Text style={styles.submitButtonText}>
-                      {editingPlanId ? 'Save Changes' : 'Create Plan'}
-                    </Text>
-                  )}
-                </Pressable>
-              </View>
-            </View>
-          </View>
-        </Modal>
+                  Active
+                </Text>
+              </Pressable>
 
-        {/* Bottom Tab Bar */}
-        <GymBottomTabBar activeTab="home" />
+              <Pressable
+                onPress={() => setStatus('inactive')}
+                style={[
+                  styles.statusToggleBtn,
+                  status === 'inactive' && styles.statusToggleInactive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.statusToggleText,
+                    status === 'inactive' && styles.statusToggleTextInactive,
+                  ]}
+                >
+                  Inactive
+                </Text>
+              </Pressable>
+            </View>
+
+            <Pressable
+              onPress={handleSavePlan}
+              disabled={submitting}
+              style={({ pressed }) => [
+                styles.submitButton,
+                pressed && styles.submitButtonPressed,
+                submitting && styles.submitButtonDisabled,
+              ]}
+            >
+              {submitting ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={styles.submitButtonText}>
+                  {editingPlanId ? 'Save Changes' : 'Create Plan'}
+                </Text>
+              )}
+            </Pressable>
+          </ScrollView>
+        </ThemedBottomSheet>
+
+        {/* Global Themed Alert Dialog */}
+        <ThemedAlert
+          visible={alertConfig.visible}
+          type={alertConfig.type}
+          title={alertConfig.title}
+          message={alertConfig.message}
+          confirmText={alertConfig.confirmText}
+          cancelText={alertConfig.cancelText}
+          showCancel={alertConfig.showCancel}
+          onConfirm={alertConfig.onConfirm}
+          onCancel={alertConfig.onCancel}
+        />
       </SafeAreaView>
     </View>
   );
@@ -404,6 +462,9 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
+  flex1: {
+    flex: 1,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -413,6 +474,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
+  },
+  headerLeftRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitle: {
     fontSize: 18,

@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ThemedAlert } from '../../components/ThemedAlert';
 import { api } from '../../services/api';
 
 export default function GymMemberDetailScreen() {
@@ -20,20 +21,79 @@ export default function GymMemberDetailScreen() {
   const params = useLocalSearchParams();
   const memberId = Number(params.id || 1);
 
-  const [member, setMember] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [member, setMember] = useState<any>(() => {
+    const list = api.gym.getInitialMembers().data.members;
+    const base = list.find((m) => m.id === memberId) || list[0];
+    const initialPayments = api.gym.getInitialPayments().data.payments.filter((p) => p.member_id === base.id);
+    return {
+      ...base,
+      payments: initialPayments,
+      attendance: [
+        { attendance_date: new Date().toISOString().split('T')[0], status: 'present', check_in_time: '07:15 AM' },
+        { attendance_date: '2024-03-18', status: 'present', check_in_time: '06:50 AM' },
+        { attendance_date: '2024-03-17', status: 'absent', check_in_time: null },
+      ],
+      attendance_summary: { total_logged: 18, present_days: 15, absent_days: 3 },
+    };
+  });
+  const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'payments' | 'attendance'>('payments');
   const [reminderSending, setReminderSending] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState(false);
 
+  // Themed Alert State
+  const [alertConfig, setAlertConfig] = useState<{
+    visible: boolean;
+    type: 'success' | 'warning' | 'danger' | 'info' | 'confirm';
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    showCancel?: boolean;
+    onConfirm: () => void;
+    onCancel?: () => void;
+  }>({
+    visible: false,
+    type: 'info',
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
+  const showAlert = (
+    type: 'success' | 'warning' | 'danger' | 'info' | 'confirm',
+    title: string,
+    message: string,
+    onConfirm?: () => void,
+    showCancel = false,
+    confirmText = 'OK',
+    cancelText = 'Cancel',
+    onCancel?: () => void
+  ) => {
+    setAlertConfig({
+      visible: true,
+      type,
+      title,
+      message,
+      confirmText,
+      cancelText,
+      showCancel,
+      onConfirm: () => {
+        setAlertConfig((prev) => ({ ...prev, visible: false }));
+        if (onConfirm) onConfirm();
+      },
+      onCancel: () => {
+        setAlertConfig((prev) => ({ ...prev, visible: false }));
+        if (onCancel) onCancel();
+      },
+    });
+  };
+
   const fetchMember = useCallback(async () => {
     try {
-      setLoading(true);
       const res = await api.gym.getMember(memberId);
-      if (res && res.success) {
+      if (res && res.success && res.data) {
         setMember(res.data);
-      } else {
-        Alert.alert('Error', res?.message || 'Failed to load member profile.');
       }
     } catch (e) {
       console.warn('Fetch member detail error:', e);
@@ -51,12 +111,12 @@ export default function GymMemberDetailScreen() {
     try {
       const res = await api.gym.sendReminder(memberId);
       if (res && res.success) {
-        Alert.alert('Reminder Recorded', `Fee reminder sent to ${member.name}.`);
+        showAlert('success', 'Reminder Recorded', `Fee reminder sent to ${member.name}.`);
       } else {
-        Alert.alert('Notice', res?.message || 'Could not record reminder.');
+        showAlert('warning', 'Notice', res?.message || 'Could not record reminder.');
       }
     } catch (e) {
-      Alert.alert('Error', 'Failed to send reminder.');
+      showAlert('danger', 'Error', 'Failed to send reminder.');
     } finally {
       setReminderSending(false);
     }
@@ -66,30 +126,27 @@ export default function GymMemberDetailScreen() {
     if (!member) return;
     const newStatus = member.status === 'active' ? 'inactive' : 'active';
 
-    Alert.alert(
+    showAlert(
+      newStatus === 'inactive' ? 'danger' : 'confirm',
       `${newStatus === 'active' ? 'Activate' : 'Deactivate'} Member`,
       `Are you sure you want to mark ${member.name} as ${newStatus}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Confirm',
-          style: newStatus === 'inactive' ? 'destructive' : 'default',
-          onPress: async () => {
-            setStatusUpdating(true);
-            try {
-              const res = await api.gym.updateMember(memberId, { status: newStatus });
-              if (res && res.success) {
-                setMember((prev: any) => ({ ...prev, status: newStatus }));
-                Alert.alert('Updated', `Member status changed to ${newStatus}.`);
-              }
-            } catch (e) {
-              Alert.alert('Error', 'Failed to update member status.');
-            } finally {
-              setStatusUpdating(false);
-            }
-          },
-        },
-      ]
+      async () => {
+        setStatusUpdating(true);
+        try {
+          const res = await api.gym.updateMember(memberId, { status: newStatus });
+          if (res && res.success) {
+            setMember((prev: any) => ({ ...prev, status: newStatus }));
+            showAlert('success', 'Updated', `Member status changed to ${newStatus}.`);
+          }
+        } catch (e) {
+          showAlert('danger', 'Error', 'Failed to update member status.');
+        } finally {
+          setStatusUpdating(false);
+        }
+      },
+      true,
+      'Confirm',
+      'Cancel'
     );
   };
 
@@ -131,7 +188,7 @@ export default function GymMemberDetailScreen() {
           <View style={{ width: 36 }} />
         </View>
 
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView style={styles.flex1} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           {/* Profile Card */}
           <View style={styles.profileCard}>
             <View style={styles.profileAvatar}>
@@ -287,8 +344,8 @@ export default function GymMemberDetailScreen() {
               {payments.length === 0 ? (
                 <Text style={styles.emptyText}>No payment records available.</Text>
               ) : (
-                payments.map((p: any) => (
-                  <View key={`pay-${p.id}`} style={styles.historyItem}>
+                payments.map((p: any, idx: number) => (
+                  <View key={`pay-${p.id || idx}`} style={styles.historyItem}>
                     <View style={styles.historyLeft}>
                       <View style={styles.historyIcon}>
                         <Ionicons name="card-outline" size={16} color="#0052FF" />
@@ -327,8 +384,8 @@ export default function GymMemberDetailScreen() {
               {attendance.length === 0 ? (
                 <Text style={styles.emptyText}>No attendance records recorded yet.</Text>
               ) : (
-                attendance.map((a: any) => (
-                  <View key={`att-${a.id}`} style={styles.historyItem}>
+                attendance.map((a: any, idx: number) => (
+                  <View key={`att-${a.id || a.attendance_date || idx}`} style={styles.historyItem}>
                     <View style={styles.historyLeft}>
                       <View
                         style={[
@@ -363,6 +420,19 @@ export default function GymMemberDetailScreen() {
             </View>
           )}
         </ScrollView>
+
+        {/* Global Themed Alert Dialog */}
+        <ThemedAlert
+          visible={alertConfig.visible}
+          type={alertConfig.type}
+          title={alertConfig.title}
+          message={alertConfig.message}
+          confirmText={alertConfig.confirmText}
+          cancelText={alertConfig.cancelText}
+          showCancel={alertConfig.showCancel}
+          onConfirm={alertConfig.onConfirm}
+          onCancel={alertConfig.onCancel}
+        />
       </SafeAreaView>
     </View>
   );
@@ -374,6 +444,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
   },
   safeArea: {
+    flex: 1,
+  },
+  flex1: {
     flex: 1,
   },
   centerContainer: {

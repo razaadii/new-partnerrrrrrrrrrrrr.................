@@ -14,20 +14,30 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BottomTabBar } from '../components/BottomTabBar';
 import { MapRouteGraphic } from '../components/MapRouteGraphic';
+import { api } from '../services/api';
 
 export default function LiveLocationScreen() {
   const router = useRouter();
+
+  const partner = api.getCurrentPartner() || api.getInitialPartner();
+  const activeJob = api.getInitialJobs('active', partner?.login_id).jobs[0] || {
+    serviceTitle: 'Emergency Service Lead',
+    customerName: 'Rahul Kumar',
+    customerPhone: '+91 91234 56789',
+    location: 'Barauni, Ward No. 22, Near Power House Road, Begusarai, Bihar - 851101',
+    amount: 699,
+  };
 
   const handleBack = () => {
     router.push('/dashboard' as any);
   };
 
   const handleCall = () => {
-    Linking.openURL('tel:+919123456789').catch(() => {});
+    Linking.openURL(`tel:${activeJob.customerPhone.replace(/\s+/g, '')}`).catch(() => {});
   };
 
   const handleWhatsApp = () => {
-    Linking.openURL('https://wa.me/919123456789').catch(() => {});
+    Linking.openURL(`https://wa.me/${activeJob.customerPhone.replace(/[^0-9]/g, '')}`).catch(() => {});
   };
 
   const handleReachedLocation = () => {
@@ -96,8 +106,8 @@ export default function LiveLocationScreen() {
 
             {/* Name & Phone */}
             <View style={styles.customerInfoBlock}>
-              <Text style={styles.customerName}>Rahul Kumar</Text>
-              <Text style={styles.customerPhone}>+91 91234 56789</Text>
+              <Text style={styles.customerName}>{activeJob.customerName}</Text>
+              <Text style={styles.customerPhone}>{activeJob.customerPhone}</Text>
             </View>
 
             {/* Call & WhatsApp Quick Buttons */}
@@ -128,8 +138,7 @@ export default function LiveLocationScreen() {
             </View>
             <View style={styles.addressTextBlock}>
               <Text style={styles.addressText}>
-                Barauni, Ward No. 22, Near Power House Road,{'\n'}
-                Begusarai, Bihar - 851101
+                {activeJob.location}
               </Text>
             </View>
             <Pressable onPress={handleOpenGoogleMaps} hitSlop={8}>

@@ -17,6 +17,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GymBottomTabBar } from '../../components/GymBottomTabBar';
+import { ThemedAlert } from '../../components/ThemedAlert';
+import { ThemedBottomSheet } from '../../components/ThemedBottomSheet';
 import { api } from '../../services/api';
 
 export default function GymAttendanceScreen() {
@@ -29,14 +31,9 @@ export default function GymAttendanceScreen() {
 
   const [selectedDate, setSelectedDate] = useState(todayStr);
   const [searchQuery, setSearchQuery] = useState('');
-  const [attendanceList, setAttendanceList] = useState<any[]>([]);
-  const [summary, setSummary] = useState({
-    total_members: 0,
-    present_count: 0,
-    absent_count: 0,
-    attendance_rate: 0,
-  });
-  const [loading, setLoading] = useState(true);
+  const [attendanceList, setAttendanceList] = useState<any[]>(() => api.gym.getInitialAttendance(todayStr).data.attendance);
+  const [summary, setSummary] = useState(() => api.gym.getInitialAttendance(todayStr).data.summary);
+  const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [updatingMemberId, setUpdatingMemberId] = useState<number | null>(null);
 
@@ -45,17 +42,70 @@ export default function GymAttendanceScreen() {
   const [targetMember, setTargetMember] = useState<any>(null);
   const [customTime, setCustomTime] = useState('');
 
+  // Themed Alert State
+  const [alertConfig, setAlertConfig] = useState<{
+    visible: boolean;
+    type: 'success' | 'warning' | 'danger' | 'info' | 'confirm';
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    showCancel?: boolean;
+    onConfirm: () => void;
+    onCancel?: () => void;
+  }>({
+    visible: false,
+    type: 'info',
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
+  const showAlert = (
+    type: 'success' | 'warning' | 'danger' | 'info' | 'confirm',
+    title: string,
+    message: string,
+    onConfirm?: () => void,
+    showCancel = false,
+    confirmText = 'OK',
+    cancelText = 'Cancel',
+    onCancel?: () => void
+  ) => {
+    setAlertConfig({
+      visible: true,
+      type,
+      title,
+      message,
+      confirmText,
+      cancelText,
+      showCancel,
+      onConfirm: () => {
+        setAlertConfig((prev) => ({ ...prev, visible: false }));
+        if (onConfirm) onConfirm();
+      },
+      onCancel: () => {
+        setAlertConfig((prev) => ({ ...prev, visible: false }));
+        if (onCancel) onCancel();
+      },
+    });
+  };
+
   const fetchAttendance = useCallback(async () => {
     try {
-      setLoading(true);
+      // Instant local load in 0ms
+      const local = api.gym.getInitialAttendance(selectedDate, searchQuery);
+      if (local?.data?.attendance) {
+        setAttendanceList(local.data.attendance);
+        if (local.data.summary) {
+          setSummary(local.data.summary);
+        }
+      }
+
+      // Background network sync
       const res = await api.gym.getAttendance(selectedDate, searchQuery);
       if (res && res.success) {
-        setAttendanceList(res.data?.attendance || []);
-        if (res.data?.summary) {
-          setSummary(res.data.summary);
-        }
-      } else {
-        Alert.alert('Notice', res?.message || 'Could not load attendance.');
+        if (res.data?.attendance) setAttendanceList(res.data.attendance);
+        if (res.data?.summary) setSummary(res.data.summary);
       }
     } catch (e) {
       console.warn('Fetch attendance error:', e);
@@ -127,10 +177,10 @@ export default function GymAttendanceScreen() {
           };
         });
       } else {
-        Alert.alert('Error', res?.message || 'Failed to update attendance.');
+        showAlert('warning', 'Notice', res?.message || 'Failed to update attendance.');
       }
     } catch (e) {
-      Alert.alert('Error', 'Unable to record attendance.');
+      showAlert('danger', 'Error', 'Unable to record attendance.');
     } finally {
       setUpdatingMemberId(null);
     }
@@ -165,28 +215,10 @@ export default function GymAttendanceScreen() {
           </View>
 
           <View style={styles.infoCol}>
-            <View style={styles.nameRow}>
-              <Text style={styles.memberName} numberOfLines={1}>
-                {item.member_name}
-              </Text>
-              <View
-                style={[
-                  styles.statusBadge,
-                  isPresent ? styles.badgePresent : styles.badgeAbsent,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.statusBadgeText,
-                    isPresent ? styles.badgeTextPresent : styles.badgeTextAbsent,
-                  ]}
-                >
-                  {isPresent ? 'Present' : 'Absent'}
-                </Text>
-              </View>
-            </View>
-
-            <Text style={styles.memberSub}>
+            <Text style={styles.memberName} numberOfLines={1}>
+              {item.member_name}
+            </Text>
+            <Text style={styles.memberSub} numberOfLines={1}>
               {item.plan_name || 'General Plan'} • {item.member_mobile}
             </Text>
 
@@ -196,32 +228,34 @@ export default function GymAttendanceScreen() {
                 style={styles.timeTag}
                 hitSlop={6}
               >
-                <Ionicons name="time-outline" size={13} color="#0052FF" />
+                <Ionicons name="time-outline" size={12} color="#0052FF" />
                 <Text style={styles.timeTagText}>In at {item.check_in_time}</Text>
                 <Ionicons name="pencil" size={10} color="#0052FF" style={{ marginLeft: 2 }} />
               </Pressable>
             ) : null}
           </View>
 
-          {/* Action Buttons */}
+          {/* Clean Unified Check-in Action Control */}
           <View style={styles.actionCol}>
             {isUpdating ? (
-              <ActivityIndicator size="small" color="#0052FF" style={{ padding: 8 }} />
+              <ActivityIndicator size="small" color="#0052FF" style={{ padding: 6 }} />
             ) : isPresent ? (
               <Pressable
                 onPress={() => handleMarkAttendance(item.member_id, 'absent')}
-                style={({ pressed }) => [styles.markAbsentBtn, pressed && styles.btnPressed]}
+                style={({ pressed }) => [styles.presentPill, pressed && styles.btnPressed]}
+                hitSlop={6}
               >
-                <Ionicons name="close" size={16} color="#DC2626" />
-                <Text style={styles.markAbsentText}>Mark Absent</Text>
+                <Ionicons name="checkmark-circle" size={15} color="#16A34A" />
+                <Text style={styles.presentPillText}>Present</Text>
               </Pressable>
             ) : (
               <Pressable
                 onPress={() => handleMarkAttendance(item.member_id, 'present')}
-                style={({ pressed }) => [styles.markPresentBtn, pressed && styles.btnPressed]}
+                style={({ pressed }) => [styles.absentPill, pressed && styles.btnPressed]}
+                hitSlop={6}
               >
-                <Ionicons name="checkmark-circle" size={16} color="#FFFFFF" />
-                <Text style={styles.markPresentText}>Mark Present</Text>
+                <Ionicons name="add" size={15} color="#0052FF" />
+                <Text style={styles.absentPillText}>Check In</Text>
               </Pressable>
             )}
           </View>
@@ -343,8 +377,9 @@ export default function GymAttendanceScreen() {
           </View>
         ) : (
           <FlatList
+            style={styles.flex1}
             data={attendanceList}
-            keyExtractor={(item) => String(item.member_id)}
+            keyExtractor={(item, index) => String(item.member_id || item.id || index)}
             renderItem={renderAttendanceItem}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
@@ -372,46 +407,84 @@ export default function GymAttendanceScreen() {
           />
         )}
 
-        {/* Custom Time Modal */}
-        <Modal
+        {/* Custom Check-in Time Themed Bottom Sheet */}
+        <ThemedBottomSheet
           visible={timeModalVisible}
-          transparent={true}
-          animationType="fade"
-          onRequestClose={() => setTimeModalVisible(false)}
+          onClose={() => setTimeModalVisible(false)}
+          title="Edit Check-in Time"
+          subtitle={`Set arrival time for ${targetMember?.member_name || 'Member'}`}
+          icon="time-outline"
+          iconColor="#0052FF"
+          maxHeight="50%"
         >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalBox}>
-              <Text style={styles.modalTitle}>Edit Check-in Time</Text>
-              <Text style={styles.modalSubtitle}>
-                Set check-in time for {targetMember?.member_name}
-              </Text>
+          <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 28 }}>
+            <Text style={{ fontSize: 12.5, fontWeight: '700', color: '#334155', marginBottom: 6 }}>
+              Check-in Time
+            </Text>
+            <TextInput
+              style={{
+                backgroundColor: '#F8FAFC',
+                borderWidth: 1,
+                borderColor: '#E2E8F0',
+                borderRadius: 12,
+                paddingHorizontal: 14,
+                height: 48,
+                fontSize: 15,
+                color: '#0F172A',
+                fontWeight: '600',
+              }}
+              value={customTime}
+              onChangeText={setCustomTime}
+              placeholder="e.g. 06:45 AM"
+              placeholderTextColor="#94A3B8"
+            />
 
-              <TextInput
-                style={styles.timeInput}
-                value={customTime}
-                onChangeText={setCustomTime}
-                placeholder="e.g. 06:45 AM"
-                placeholderTextColor="#94A3B8"
-              />
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
+              <Pressable
+                onPress={() => setTimeModalVisible(false)}
+                style={{
+                  flex: 1,
+                  height: 48,
+                  borderRadius: 12,
+                  backgroundColor: '#F1F5F9',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderWidth: 1,
+                  borderColor: '#E2E8F0',
+                }}
+              >
+                <Text style={{ fontSize: 13.5, fontWeight: '700', color: '#64748B' }}>Cancel</Text>
+              </Pressable>
 
-              <View style={styles.modalBtnRow}>
-                <Pressable
-                  onPress={() => setTimeModalVisible(false)}
-                  style={styles.modalCancelBtn}
-                >
-                  <Text style={styles.modalCancelText}>Cancel</Text>
-                </Pressable>
-
-                <Pressable
-                  onPress={handleSaveCustomTime}
-                  style={styles.modalConfirmBtn}
-                >
-                  <Text style={styles.modalConfirmText}>Save Time</Text>
-                </Pressable>
-              </View>
+              <Pressable
+                onPress={handleSaveCustomTime}
+                style={{
+                  flex: 1,
+                  height: 48,
+                  borderRadius: 12,
+                  backgroundColor: '#0052FF',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Text style={{ fontSize: 13.5, fontWeight: '700', color: '#FFFFFF' }}>Save Time</Text>
+              </Pressable>
             </View>
           </View>
-        </Modal>
+        </ThemedBottomSheet>
+
+        {/* Global Themed Alert Dialog */}
+        <ThemedAlert
+          visible={alertConfig.visible}
+          type={alertConfig.type}
+          title={alertConfig.title}
+          message={alertConfig.message}
+          confirmText={alertConfig.confirmText}
+          cancelText={alertConfig.cancelText}
+          showCancel={alertConfig.showCancel}
+          onConfirm={alertConfig.onConfirm}
+          onCancel={alertConfig.onCancel}
+        />
 
         {/* Bottom Tab Navigation */}
         <GymBottomTabBar activeTab="attendance" />
@@ -426,6 +499,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
   },
   safeArea: {
+    flex: 1,
+  },
+  flex1: {
     flex: 1,
   },
   header: {
@@ -682,34 +758,36 @@ const styles = StyleSheet.create({
   actionCol: {
     marginLeft: 8,
   },
-  markPresentBtn: {
+  presentPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#16A34A',
+    gap: 5,
+    backgroundColor: '#DCFCE7',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
     paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 8,
+    paddingVertical: 6,
+    borderRadius: 20,
   },
-  markPresentText: {
-    color: '#FFFFFF',
-    fontSize: 11.5,
+  presentPillText: {
+    color: '#15803D',
+    fontSize: 12,
     fontWeight: '700',
   },
-  markAbsentBtn: {
+  absentPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#FEE2E2',
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: '#FECACA',
+    borderColor: '#CBD5E1',
     paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 8,
+    paddingVertical: 6,
+    borderRadius: 20,
   },
-  markAbsentText: {
-    color: '#DC2626',
-    fontSize: 11.5,
+  absentPillText: {
+    color: '#0052FF',
+    fontSize: 12,
     fontWeight: '700',
   },
   btnPressed: {

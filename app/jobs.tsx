@@ -3,7 +3,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useState } from 'react';
 import {
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BottomTabBar } from '../components/BottomTabBar';
+import { ThemedAlert } from '../components/ThemedAlert';
 
 type JobStatus = 'active' | 'pending' | 'completed';
 type FilterType = 'all' | 'active' | 'pending' | 'completed';
@@ -80,52 +80,131 @@ const INITIAL_JOBS: JobItem[] = [
   },
 ];
 
+import { api } from '../services/api';
+
 export default function JobsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
 
+  const partner = api.getCurrentPartner() || api.getInitialPartner();
+
   const [filter, setFilter] = useState<FilterType>(
     (params.filter as FilterType) || 'all'
   );
-  const [jobs, setJobs] = useState<JobItem[]>(INITIAL_JOBS);
+  const [jobs, setJobs] = useState<any[]>(() => api.getInitialJobs((params.filter as FilterType) || 'all', partner?.login_id).jobs);
+
+  // Themed Alert State
+  const [alertConfig, setAlertConfig] = useState<{
+    visible: boolean;
+    type: 'success' | 'warning' | 'danger' | 'info' | 'confirm';
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    showCancel?: boolean;
+    onConfirm: () => void;
+    onCancel?: () => void;
+  }>({
+    visible: false,
+    type: 'info',
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
+  const showAlert = (
+    type: 'success' | 'warning' | 'danger' | 'info' | 'confirm',
+    title: string,
+    message: string,
+    onConfirm?: () => void,
+    showCancel = false,
+    confirmText = 'OK',
+    cancelText = 'Cancel',
+    onCancel?: () => void
+  ) => {
+    setAlertConfig({
+      visible: true,
+      type,
+      title,
+      message,
+      confirmText,
+      cancelText,
+      showCancel,
+      onConfirm: () => {
+        setAlertConfig((prev) => ({ ...prev, visible: false }));
+        if (onConfirm) onConfirm();
+      },
+      onCancel: () => {
+        setAlertConfig((prev) => ({ ...prev, visible: false }));
+        if (onCancel) onCancel();
+      },
+    });
+  };
+
+  const fetchLiveJobs = React.useCallback(async () => {
+    try {
+      const res = await api.getJobs(filter, partner?.id);
+      if (res && res.jobs) {
+        setJobs(res.jobs);
+      }
+    } catch (e) {
+      // Fallback to initial
+    }
+  }, [filter, partner?.id]);
+
+  React.useEffect(() => {
+    fetchLiveJobs();
+  }, [fetchLiveJobs]);
+
+  const getCategoryIcon = (catString?: string): any => {
+    const cat = (catString || '').toLowerCase();
+    if (cat.includes('appliance')) return 'construct';
+    if (cat.includes('plumb')) return 'water';
+    if (cat.includes('electr')) return 'flash';
+    if (cat.includes('instant') || cat.includes('help')) return 'timer';
+    return 'snow';
+  };
 
   const handleNotifications = () => {
-    Alert.alert(
-      'New Job Leads (3)',
-      '1. AC Installation - Barauni (₹699)\n2. AC Gas Refill - Begusarai (₹899)\n3. AC Repair - Begusarai (₹599)'
+    showAlert(
+      'info',
+      `${partner?.category || 'Service'} Leads (3)`,
+      `Available ${partner?.category || 'service'} requests in Begusarai ready for instant assignment.`
     );
   };
 
   const handleAcceptJob = (jobId: string, title: string) => {
-    Alert.alert(
+    showAlert(
+      'confirm',
       'Accept Job Lead?',
-      `Are you sure you want to accept "${title}"? The customer will be notified that you are assigned.`,
-      [
-        { text: 'Decline', style: 'cancel' },
-        {
-          text: 'Accept Job',
-          onPress: () => {
-            setJobs((prev) =>
-              prev.map((j) => (j.id === jobId ? { ...j, status: 'active' } : j))
-            );
-            Alert.alert(
-              'Job Accepted! 🎉',
-              `"${title}" is now Active. You can start the job when ready to navigate to the customer.`
-            );
-          },
-        },
-      ]
+      `Are you sure you want to accept "${title}"? The customer will receive immediate confirmation.`,
+      () => {
+        setJobs((prev) =>
+          prev.map((j) => (j.id === jobId ? { ...j, status: 'active' } : j))
+        );
+        setTimeout(() => {
+          showAlert(
+            'success',
+            'Job Accepted! 🎉',
+            `"${title}" is now Active. You can start navigation when ready to travel.`
+          );
+        }, 300);
+      },
+      true,
+      'Accept Job',
+      'Decline'
     );
   };
 
-  const handleStartJob = (job: JobItem) => {
+  const handleStartJob = (job: any) => {
     // Navigate to Live Location tracking and arrival screen
     router.push('/live-location' as any);
   };
 
-  const handleViewReceipt = (job: JobItem) => {
-    Alert.alert(
-      `Job Completed (#${job.id})`,
+  const handleViewReceipt = (job: any) => {
+    showAlert(
+      'info',
+      `Job Summary (#${job.id})`,
       `Service: ${job.serviceTitle}\nCustomer: ${job.customerName}\nLocation: ${job.location}\nAmount: ₹${job.amount}\nStatus: Paid & Settled to Wallet`
     );
   };
@@ -139,45 +218,46 @@ export default function JobsScreen() {
   const pendingCount = jobs.filter((j) => j.status === 'pending').length;
   const completedCount = jobs.filter((j) => j.status === 'completed').length;
 
-  const renderServiceIcon = (type: JobItem['iconType']) => {
-    switch (type) {
-      case 'install':
-        return (
-          <View style={styles.serviceIconCircle}>
-            <MaterialCommunityIcons name="air-conditioner" size={24} color="#0052FF" />
-            <Ionicons name="snow" size={10} color="#0052FF" style={styles.miniIcon} />
-          </View>
-        );
-      case 'gas':
-        return (
-          <View style={styles.serviceIconCircle}>
-            <MaterialCommunityIcons name="air-conditioner" size={24} color="#0052FF" />
-            <Ionicons name="construct" size={10} color="#0052FF" style={styles.miniIcon} />
-          </View>
-        );
-      case 'service':
-        return (
-          <View style={styles.serviceIconCircle}>
-            <MaterialCommunityIcons name="air-conditioner" size={24} color="#0052FF" />
-            <Ionicons name="sparkles" size={10} color="#0052FF" style={styles.miniIcon} />
-          </View>
-        );
-      case 'repair':
-        return (
-          <View style={styles.serviceIconCircle}>
-            <MaterialCommunityIcons name="air-conditioner" size={24} color="#0052FF" />
-            <Ionicons name="water" size={10} color="#0052FF" style={styles.miniIcon} />
-          </View>
-        );
-      case 'maintenance':
-      default:
-        return (
-          <View style={styles.serviceIconCircle}>
-            <MaterialCommunityIcons name="air-conditioner" size={24} color="#0052FF" />
-            <Ionicons name="shield-checkmark" size={10} color="#0052FF" style={styles.miniIcon} />
-          </View>
-        );
+  const renderServiceIcon = (type: string, serviceTitle = '') => {
+    const cat = (partner?.category || '').toLowerCase();
+    const title = serviceTitle.toLowerCase();
+
+    if (cat.includes('appliance') || title.includes('washing') || title.includes('refrigerator') || title.includes('purifier') || title.includes('microwave')) {
+      return (
+        <View style={[styles.serviceIconCircle, { backgroundColor: '#EFF6FF' }]}>
+          <Ionicons name="construct" size={22} color="#0052FF" />
+        </View>
+      );
     }
+    if (cat.includes('plumb') || title.includes('pipe') || title.includes('tank') || title.includes('tap') || title.includes('water') || title.includes('sink')) {
+      return (
+        <View style={[styles.serviceIconCircle, { backgroundColor: '#E0F2FE' }]}>
+          <Ionicons name="water" size={22} color="#0284C7" />
+        </View>
+      );
+    }
+    if (cat.includes('electr') || title.includes('mcb') || title.includes('wiring') || title.includes('fuse') || title.includes('light') || title.includes('geyser')) {
+      return (
+        <View style={[styles.serviceIconCircle, { backgroundColor: '#FEF3C7' }]}>
+          <Ionicons name="flash" size={22} color="#D97706" />
+        </View>
+      );
+    }
+    if (cat.includes('instant') || title.includes('lock') || title.includes('burst') || title.includes('emergency') || title.includes('tire') || title.includes('urgent')) {
+      return (
+        <View style={[styles.serviceIconCircle, { backgroundColor: '#FEE2E2' }]}>
+          <Ionicons name="shield-checkmark" size={22} color="#DC2626" />
+        </View>
+      );
+    }
+
+    // Default AC icon
+    return (
+      <View style={styles.serviceIconCircle}>
+        <MaterialCommunityIcons name="air-conditioner" size={24} color="#0052FF" />
+        <Ionicons name="snow" size={10} color="#0052FF" style={styles.miniIcon} />
+      </View>
+    );
   };
 
   return (
@@ -192,10 +272,15 @@ export default function JobsScreen() {
             <View style={styles.headerTitleBlock}>
               <Text style={styles.headerTitle}>My Jobs</Text>
               <View style={styles.categoryRow}>
-                <Ionicons name="snow" size={13} color="#FFFFFF" style={{ marginRight: 5 }} />
-                <Text style={styles.categoryText}>AC Technician</Text>
+                <Ionicons
+                  name={getCategoryIcon(partner?.category)}
+                  size={13}
+                  color="#FFFFFF"
+                  style={{ marginRight: 5 }}
+                />
+                <Text style={styles.categoryText}>{partner?.category || 'Service Partner'}</Text>
               </View>
-              <Text style={styles.todayMetaText}>Today • {jobs.length} Jobs</Text>
+              <Text style={styles.todayMetaText}>Today • {jobs.length} Assigned</Text>
             </View>
 
             {/* Notification Bell */}
@@ -428,6 +513,18 @@ export default function JobsScreen() {
 
       {/* Bottom Navigation Tab Bar with active Jobs tab */}
       <BottomTabBar activeTab="jobs" />
+
+      <ThemedAlert
+        visible={alertConfig.visible}
+        type={alertConfig.type}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        confirmText={alertConfig.confirmText}
+        cancelText={alertConfig.cancelText}
+        showCancel={alertConfig.showCancel}
+        onConfirm={alertConfig.onConfirm}
+        onCancel={alertConfig.onCancel}
+      />
     </View>
   );
 }

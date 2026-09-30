@@ -1,9 +1,9 @@
 import { FontAwesome, Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Alert,
+  ActivityIndicator,
   Platform,
   Pressable,
   ScrollView,
@@ -14,25 +14,96 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BottomTabBar } from '../components/BottomTabBar';
+import { ThemedAlert } from '../components/ThemedAlert';
+import { api } from '../services/api';
 
 export default function DashboardScreen() {
   const router = useRouter();
   const [isAvailable, setIsAvailable] = useState(true);
 
+  // Active Partner Data
+  const [partner, setPartner] = useState<any>(() => api.getCurrentPartner() || api.getInitialPartner());
+  const [jobs, setJobs] = useState<any[]>(() => api.getInitialJobs('all', partner?.login_id).jobs);
+  const [loading, setLoading] = useState(false);
+
+  // Themed Alert State
+  const [alertConfig, setAlertConfig] = useState<{
+    visible: boolean;
+    type: 'success' | 'warning' | 'danger' | 'info' | 'confirm';
+    title: string;
+    message: string;
+    confirmText?: string;
+    onConfirm: () => void;
+  }>({
+    visible: false,
+    type: 'info',
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
+  const showAlert = (
+    type: 'success' | 'warning' | 'danger' | 'info' | 'confirm',
+    title: string,
+    message: string
+  ) => {
+    setAlertConfig({
+      visible: true,
+      type,
+      title,
+      message,
+      confirmText: 'OK',
+      onConfirm: () => setAlertConfig((prev) => ({ ...prev, visible: false })),
+    });
+  };
+
+  const fetchJobs = useCallback(async () => {
+    try {
+      const current = api.getCurrentPartner() || api.getInitialPartner();
+      setPartner(current);
+      const res = await api.getJobs('all', current?.id);
+      if (res && res.jobs) {
+        setJobs(res.jobs);
+      }
+    } catch (e) {
+      // Keep initial jobs
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchJobs();
+  }, [fetchJobs]);
+
   const handleToggleAvailability = (val: boolean) => {
     setIsAvailable(val);
-    Alert.alert(
+    showAlert(
+      val ? 'success' : 'warning',
       val ? 'You are Online' : 'You are Offline',
       val
-        ? 'You will now receive job requests in Begusarai.'
-        : 'You will not receive new job requests while offline.'
+        ? `You are now ready to receive high-paying ${partner?.category || 'service'} requests across Begusarai.`
+        : 'You will not receive new incoming job leads while set to offline.'
     );
   };
 
+  const activeJob = jobs.find((j) => j.status === 'active') || jobs[0];
+  const pendingJobsCount = jobs.filter((j) => j.status === 'pending').length;
+  const completedJobsCount = jobs.filter((j) => j.status === 'completed').length;
+  const walletAmount = partner?.wallet_balance || 2450;
+
+  const getCategoryIcon = (catString?: string): any => {
+    const cat = (catString || '').toLowerCase();
+    if (cat.includes('appliance')) return 'construct';
+    if (cat.includes('plumb')) return 'water';
+    if (cat.includes('electr')) return 'flash';
+    if (cat.includes('instant') || cat.includes('help')) return 'timer';
+    return 'snow';
+  };
+
   const handleNotifications = () => {
-    Alert.alert(
-      'Notifications (3)',
-      '1. New AC Installation in Barauni (2.3 KM away)\n2. Payment of ₹699 credited to your wallet\n3. Weekly incentive target reached (90%)'
+    showAlert(
+      'info',
+      'Recent Notifications (3)',
+      `1. New ${activeJob?.serviceTitle || 'Service Request'} in Barauni\n2. Payout credited to your wallet\n3. 5-Star Rating received from customer`
     );
   };
 
@@ -56,18 +127,33 @@ export default function DashboardScreen() {
       <View style={styles.headerBackground}>
         <SafeAreaView edges={['top']} style={styles.headerSafe}>
           <View style={styles.headerTopRow}>
-            {/* Greeting & Location */}
+            {/* Greeting & Partner Category */}
             <View style={styles.greetingBlock}>
-              <Text style={styles.greetingText}>Good Morning, Rohan 👋</Text>
+              <Text style={styles.greetingText}>
+                Good Morning, {partner?.name?.split(' ')[0] || 'Partner'} 👋
+              </Text>
+
+              {/* Dynamic Service Category Badge */}
+              <View style={styles.categoryBadgeRow}>
+                <Ionicons
+                  name={getCategoryIcon(partner?.category)}
+                  size={13}
+                  color="#93C5FD"
+                  style={{ marginRight: 4 }}
+                />
+                <Text style={styles.categoryBadgeText} numberOfLines={1}>
+                  {partner?.category || 'Certified Partner'}
+                </Text>
+              </View>
+
               <View style={styles.locationRow}>
-                <Ionicons name="location" size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
+                <Ionicons name="location" size={13} color="rgba(255,255,255,0.85)" style={{ marginRight: 3 }} />
                 <Text style={styles.locationText}>Begusarai, Bihar</Text>
               </View>
             </View>
 
             {/* Available Toggle & Notification Bell */}
             <View style={styles.headerRightBlock}>
-              {/* Available for Work Pill */}
               <View style={styles.availablePill}>
                 <View
                   style={[
@@ -75,7 +161,7 @@ export default function DashboardScreen() {
                     { backgroundColor: isAvailable ? '#22C55E' : '#94A3B8' },
                   ]}
                 />
-                <Text style={styles.availableText}>Available for Work</Text>
+                <Text style={styles.availableText}>Available</Text>
                 <Switch
                   value={isAvailable}
                   onValueChange={handleToggleAvailability}
@@ -104,6 +190,44 @@ export default function DashboardScreen() {
         showsVerticalScrollIndicator={false}
         bounces={false}
       >
+        {/* Active Assigned Job Card (Direct Action) */}
+        {activeJob && (
+          <View style={styles.activeJobCard}>
+            <View style={styles.activeJobHeader}>
+              <View style={styles.activeJobBadge}>
+                <View style={styles.pulseDot} />
+                <Text style={styles.activeJobBadgeText}>ASSIGNED JOB IN PROGRESS</Text>
+              </View>
+              <Text style={styles.activeJobAmount}>₹{activeJob.amount}</Text>
+            </View>
+
+            <Text style={styles.activeJobTitle}>{activeJob.serviceTitle}</Text>
+            <Text style={styles.activeJobLocation} numberOfLines={1}>
+              📍 {activeJob.location}
+            </Text>
+
+            <View style={styles.activeJobDivider} />
+
+            <View style={styles.activeJobFooter}>
+              <View style={styles.customerCol}>
+                <Text style={styles.activeJobCustomer}>{activeJob.customerName}</Text>
+                <Text style={styles.activeJobPhone}>{activeJob.customerPhone}</Text>
+              </View>
+
+              <Pressable
+                onPress={() => router.push('/live-location' as any)}
+                style={({ pressed }) => [
+                  styles.activeJobActionBtn,
+                  pressed && { opacity: 0.85 },
+                ]}
+              >
+                <Ionicons name="navigate" size={15} color="#FFFFFF" style={{ marginRight: 4 }} />
+                <Text style={styles.activeJobActionText}>Live GPS & PIN</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+
         {/* Section Heading */}
         <Text style={styles.sectionHeading}>Today's Overview</Text>
 
@@ -122,7 +246,7 @@ export default function DashboardScreen() {
               <Ionicons name="calendar-outline" size={24} color="#0066F5" />
             </View>
             <Text style={styles.cardLabel}>Today's Jobs</Text>
-            <Text style={[styles.cardValue, { color: '#0066F5' }]}>12</Text>
+            <Text style={[styles.cardValue, { color: '#0066F5' }]}>{jobs.length}</Text>
             <View style={[styles.cardWave, { backgroundColor: '#EBF4FF' }]} />
           </Pressable>
 
@@ -138,8 +262,10 @@ export default function DashboardScreen() {
             <View style={[styles.iconCircle, { backgroundColor: '#E8F8EE' }]}>
               <FontAwesome name="rupee" size={22} color="#16A34A" />
             </View>
-            <Text style={styles.cardLabel}>Today's Earnings</Text>
-            <Text style={[styles.cardValue, { color: '#16A34A' }]}>₹2,450</Text>
+            <Text style={styles.cardLabel}>Wallet Balance</Text>
+            <Text style={[styles.cardValue, { color: '#16A34A' }]}>
+              ₹{Number(walletAmount).toLocaleString('en-IN')}
+            </Text>
             <View style={[styles.cardWave, { backgroundColor: '#E8F8EE' }]} />
           </Pressable>
 
@@ -156,7 +282,7 @@ export default function DashboardScreen() {
               <Ionicons name="time-outline" size={24} color="#D97706" />
             </View>
             <Text style={styles.cardLabel}>Pending Jobs</Text>
-            <Text style={[styles.cardValue, { color: '#D97706' }]}>3</Text>
+            <Text style={[styles.cardValue, { color: '#D97706' }]}>{pendingJobsCount}</Text>
             <View style={[styles.cardWave, { backgroundColor: '#FFFBEB' }]} />
           </Pressable>
 
@@ -173,7 +299,7 @@ export default function DashboardScreen() {
               <Ionicons name="checkmark-circle-outline" size={24} color="#7C3AED" />
             </View>
             <Text style={styles.cardLabel}>Completed Jobs</Text>
-            <Text style={[styles.cardValue, { color: '#7C3AED' }]}>9</Text>
+            <Text style={[styles.cardValue, { color: '#7C3AED' }]}>{completedJobsCount}</Text>
             <View style={[styles.cardWave, { backgroundColor: '#FAF5FF' }]} />
           </Pressable>
         </View>
@@ -191,6 +317,15 @@ export default function DashboardScreen() {
 
       {/* Persistent Bottom Tab Bar */}
       <BottomTabBar activeTab="home" />
+
+      <ThemedAlert
+        visible={alertConfig.visible}
+        type={alertConfig.type}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        confirmText={alertConfig.confirmText}
+        onConfirm={alertConfig.onConfirm}
+      />
     </View>
   );
 }
@@ -224,6 +359,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: -0.2,
+  },
+  categoryBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+    marginTop: 3,
+  },
+  categoryBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
   },
   locationRow: {
     flexDirection: 'row',
@@ -303,6 +453,104 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     paddingBottom: 24,
+  },
+  activeJobCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1.5,
+    borderColor: '#0052FF',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#0052FF',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.12,
+        shadowRadius: 10,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  activeJobHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  activeJobBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    gap: 5,
+  },
+  pulseDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#0052FF',
+  },
+  activeJobBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#0052FF',
+    letterSpacing: 0.4,
+  },
+  activeJobAmount: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#16A34A',
+  },
+  activeJobTitle: {
+    fontSize: 15.5,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginTop: 4,
+  },
+  activeJobLocation: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 4,
+  },
+  activeJobDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginVertical: 12,
+  },
+  activeJobFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  customerCol: {
+    flex: 1,
+  },
+  activeJobCustomer: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  activeJobPhone: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  activeJobActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0052FF',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  activeJobActionText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
   },
   sectionHeading: {
     fontSize: 18,

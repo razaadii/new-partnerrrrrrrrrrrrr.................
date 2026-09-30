@@ -1,9 +1,8 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,6 +11,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BottomTabBar } from '../components/BottomTabBar';
+import { ThemedAlert } from '../components/ThemedAlert';
+import { api } from '../services/api';
 
 type Timeframe = 'today' | 'week' | 'month';
 
@@ -70,9 +71,75 @@ const INITIAL_TRANSACTIONS: TransactionItem[] = [
 export default function EarningsScreen() {
   const router = useRouter();
 
+  const partner = api.getCurrentPartner() || api.getInitialPartner();
+  const initEarn = api.getInitialEarnings();
+
   const [timeframe, setTimeframe] = useState<Timeframe>('today');
-  const [walletBalance, setWalletBalance] = useState<number>(2450);
-  const [transactions, setTransactions] = useState<TransactionItem[]>(INITIAL_TRANSACTIONS);
+  const [walletBalance, setWalletBalance] = useState<number>(initEarn.wallet_balance || partner?.wallet_balance || 2450);
+  const [transactions, setTransactions] = useState<any[]>(initEarn.transactions || INITIAL_TRANSACTIONS);
+
+  useEffect(() => {
+    const fetchLiveEarnings = async () => {
+      try {
+        const res = await api.getEarnings();
+        if (res) {
+          if (res.wallet_balance) setWalletBalance(res.wallet_balance);
+          if (res.transactions) setTransactions(res.transactions);
+        }
+      } catch (e) {
+        // Fallback
+      }
+    };
+    fetchLiveEarnings();
+  }, []);
+
+  // Themed Alert State
+  const [alertConfig, setAlertConfig] = useState<{
+    visible: boolean;
+    type: 'success' | 'warning' | 'danger' | 'info' | 'confirm';
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    showCancel?: boolean;
+    onConfirm: () => void;
+    onCancel?: () => void;
+  }>({
+    visible: false,
+    type: 'info',
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
+  const showAlert = (
+    type: 'success' | 'warning' | 'danger' | 'info' | 'confirm',
+    title: string,
+    message: string,
+    onConfirm?: () => void,
+    showCancel = false,
+    confirmText = 'OK',
+    cancelText = 'Cancel',
+    onCancel?: () => void
+  ) => {
+    setAlertConfig({
+      visible: true,
+      type,
+      title,
+      message,
+      confirmText,
+      cancelText,
+      showCancel,
+      onConfirm: () => {
+        setAlertConfig((prev) => ({ ...prev, visible: false }));
+        if (onConfirm) onConfirm();
+      },
+      onCancel: () => {
+        setAlertConfig((prev) => ({ ...prev, visible: false }));
+        if (onCancel) onCancel();
+      },
+    });
+  };
 
   const earningsData = {
     today: {
@@ -102,50 +169,53 @@ export default function EarningsScreen() {
 
   const handleWithdraw = () => {
     if (walletBalance <= 0) {
-      Alert.alert('Insufficient Balance', 'Your current withdrawable wallet balance is ₹0.');
+      showAlert('warning', 'Zero Balance', 'Your current withdrawable wallet balance is ₹0.');
       return;
     }
 
-    Alert.alert(
-      'Withdraw to Bank Account',
-      `Transfer available balance of ₹${walletBalance.toLocaleString('en-IN')} to:\n\nHDFC Bank (•••• 4892)\nIFSC: HDFC0001234\nAccount Holder: Rohit Kumar\n\nTransfer Mode: Instant IMPS (No charges)`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Confirm Withdrawal',
-          onPress: () => {
-            const withdrawAmount = walletBalance;
-            setWalletBalance(0);
-            const newTxn: TransactionItem = {
-              id: `TXN-${Math.floor(1000 + Math.random() * 9000)}`,
-              title: 'Bank Withdrawal • HDFC (4892)',
-              type: 'withdrawal',
-              date: 'Just now',
-              amount: withdrawAmount,
-              status: 'withdrawn',
-            };
-            setTransactions((prev) => [newTxn, ...prev]);
-            Alert.alert(
-              'Payout Processed! 💸',
-              `₹${withdrawAmount.toLocaleString('en-IN')} has been sent to your HDFC bank account via instant IMPS transfer.`
-            );
-          },
-        },
-      ]
+    showAlert(
+      'confirm',
+      'Instant Bank Withdrawal',
+      `Transfer available balance of ₹${walletBalance.toLocaleString('en-IN')} to:\n\n• HDFC Bank (•••• 4892)\n• IFSC: HDFC0001234\n• Account: Rohit Kumar\n• Mode: Instant IMPS (Zero fee)`,
+      () => {
+        const withdrawAmount = walletBalance;
+        setWalletBalance(0);
+        const newTxn: TransactionItem = {
+          id: `TXN-${Math.floor(1000 + Math.random() * 9000)}`,
+          title: 'Bank Withdrawal • HDFC (4892)',
+          type: 'withdrawal',
+          date: 'Just now',
+          amount: withdrawAmount,
+          status: 'withdrawn',
+        };
+        setTransactions((prev) => [newTxn, ...prev]);
+        setTimeout(() => {
+          showAlert(
+            'success',
+            'Payout Processed! 💸',
+            `₹${withdrawAmount.toLocaleString('en-IN')} has been sent to your HDFC bank account via instant IMPS transfer.`
+          );
+        }, 300);
+      },
+      true,
+      'Confirm Withdrawal',
+      'Cancel'
     );
   };
 
   const handleTransactionPress = (txn: TransactionItem) => {
-    Alert.alert(
+    showAlert(
+      'info',
       `Transaction Details (#${txn.id})`,
-      `${txn.title}\nDate: ${txn.date}\nAmount: ₹${txn.amount}\nStatus: ${txn.status.toUpperCase()}\nPayment Mode: SlotB Partner Direct Settlement`
+      `${txn.title}\n\n• Date: ${txn.date}\n• Amount: ₹${txn.amount}\n• Status: ${txn.status.toUpperCase()}\n• Mode: SlotB Direct Settlement`
     );
   };
 
   const handleStatement = () => {
-    Alert.alert(
-      'Monthly Statement',
-      'Your monthly GST and earnings statement for May 2025 has been emailed to rohit.kumar@example.com.'
+    showAlert(
+      'success',
+      'Monthly Statement Sent',
+      'Your monthly GST and earnings statement for May 2025 has been emailed to your registered address.'
     );
   };
 
@@ -382,6 +452,18 @@ export default function EarningsScreen() {
 
       {/* Persistent Bottom Tab Bar with active Earnings tab */}
       <BottomTabBar activeTab="earnings" />
+
+      <ThemedAlert
+        visible={alertConfig.visible}
+        type={alertConfig.type}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        confirmText={alertConfig.confirmText}
+        cancelText={alertConfig.cancelText}
+        showCancel={alertConfig.showCancel}
+        onConfirm={alertConfig.onConfirm}
+        onCancel={alertConfig.onCancel}
+      />
     </View>
   );
 }

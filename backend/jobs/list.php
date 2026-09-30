@@ -3,16 +3,54 @@
 require_once __DIR__ . '/../config/database.php';
 
 $filter = $_GET['filter'] ?? 'all';
-$partner_id = $_GET['partner_id'] ?? 1;
+$partner_id = isset($_GET['partner_id']) ? (int)$_GET['partner_id'] : null;
+$category = $_GET['category'] ?? null;
+
+// Resolve partner_id from Authorization Bearer token if available
+$token = null;
+if (isset($_SERVER['HTTP_AUTHORIZATION'])) {
+    if (preg_match('/Bearer\s(\S+)/', $_SERVER['HTTP_AUTHORIZATION'], $matches)) {
+        $token = $matches[1];
+    }
+}
+if ($token && !$partner_id) {
+    try {
+        $stmtSess = $pdo->prepare("SELECT partner_id FROM partner_sessions WHERE token = ? AND expires_at > NOW() LIMIT 1");
+        $stmtSess->execute([$token]);
+        $sess = $stmtSess->fetch();
+        if ($sess) {
+            $partner_id = (int)$sess['partner_id'];
+        }
+    } catch (Exception $e) {
+        // Ignore session lookup failure
+    }
+}
+
+// Default fallback partner_id
+if (!$partner_id && !$category) {
+    $partner_id = 1;
+}
 
 try {
-    if ($filter === 'all' || empty($filter)) {
-        $stmt = $pdo->prepare("SELECT * FROM jobs WHERE partner_id = ? ORDER BY id DESC");
-        $stmt->execute([$partner_id]);
-    } else {
-        $stmt = $pdo->prepare("SELECT * FROM jobs WHERE partner_id = ? AND status = ? ORDER BY id DESC");
-        $stmt->execute([$partner_id, $filter]);
+    $query = "SELECT * FROM jobs WHERE 1=1";
+    $params = [];
+
+    if ($partner_id) {
+        $query .= " AND partner_id = ?";
+        $params[] = $partner_id;
+    } elseif ($category) {
+        $query .= " AND category LIKE ?";
+        $params[] = "%$category%";
     }
+
+    if ($filter !== 'all' && !empty($filter)) {
+        $query .= " AND status = ?";
+        $params[] = $filter;
+    }
+
+    $query .= " ORDER BY id DESC";
+    $stmt = $pdo->prepare($query);
+    $stmt->execute($params);
 
     $jobs = $stmt->fetchAll();
 

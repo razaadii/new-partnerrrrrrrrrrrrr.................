@@ -19,14 +19,15 @@ export const BottomTabBar: React.FC<BottomTabBarProps> = ({
   const handleTabPress = (tab: TabName) => {
     if (tab === activeTab) return;
 
+    // Use router.replace to avoid stack accumulation and jarring slide transitions
     if (tab === 'home') {
-      router.push('/dashboard' as any);
+      router.replace('/dashboard' as any);
     } else if (tab === 'jobs') {
-      router.push('/jobs' as any);
+      router.replace('/jobs' as any);
     } else if (tab === 'earnings') {
-      router.push('/earnings' as any);
+      router.replace('/earnings' as any);
     } else if (tab === 'profile') {
-      router.push('/profile' as any);
+      router.replace('/profile' as any);
     }
   };
 
@@ -42,28 +43,28 @@ export const BottomTabBar: React.FC<BottomTabBarProps> = ({
       label: 'Home',
       iconActive: 'home',
       iconInactive: 'home-outline',
-      activeColor: '#0066F5',
+      activeColor: '#0052FF',
     },
     {
       key: 'jobs',
       label: 'Jobs',
       iconActive: 'calendar',
       iconInactive: 'calendar-outline',
-      activeColor: '#0066F5',
+      activeColor: '#0052FF',
     },
     {
       key: 'earnings',
       label: 'Earnings',
       iconActive: 'wallet',
       iconInactive: 'wallet-outline',
-      activeColor: '#0066F5',
+      activeColor: '#0052FF',
     },
     {
       key: 'profile',
       label: 'Profile',
       iconActive: 'person',
       iconInactive: 'person-outline',
-      activeColor: '#16A34A',
+      activeColor: '#0052FF', // Unified brand royal blue instead of green
     },
   ];
 
@@ -78,10 +79,13 @@ export const BottomTabBar: React.FC<BottomTabBarProps> = ({
           <Pressable
             key={tab.key}
             onPress={() => handleTabPress(tab.key)}
-            style={styles.tabItem}
+            style={({ pressed }) => [
+              styles.tabItem,
+              pressed && styles.tabItemPressed,
+            ]}
             hitSlop={8}
           >
-            <View style={styles.iconContainer}>
+            <View style={[styles.iconContainer, isActive && styles.iconContainerActive]}>
               {isActive && (
                 <View
                   style={[styles.topIndicator, { backgroundColor: effectiveActiveColor }]}
@@ -115,31 +119,44 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
-    height: Platform.OS === 'ios' ? 84 : 64,
+    height: Platform.OS === 'ios' ? 84 : 66,
     paddingBottom: Platform.OS === 'ios' ? 24 : 8,
     paddingTop: 8,
-    elevation: 8,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#0F172A',
+        shadowOffset: { width: 0, height: -3 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
   },
   tabItem: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  tabItemPressed: {
+    opacity: 0.7,
+  },
   iconContainer: {
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
-    height: 28,
-    width: 38,
+    height: 30,
+    width: 44,
+    borderRadius: 15,
+  },
+  iconContainerActive: {
+    backgroundColor: '#EFF6FF',
   },
   topIndicator: {
     position: 'absolute',
     top: -8,
-    width: 24,
+    width: 20,
     height: 3,
     borderRadius: 2,
   },
@@ -150,5 +167,6 @@ const styles = StyleSheet.create({
   },
   tabLabelActive: {
     fontWeight: '700',
+    color: '#0052FF',
   },
 });

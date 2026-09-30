@@ -5,7 +5,8 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../utils/response.php';
 
-function requireAuth() {
+function requireAuth()
+{
     global $pdo;
 
     $headers = getallheaders();
@@ -48,7 +49,7 @@ function requireAuth() {
             $stmtGym->execute([$partner['id']]);
             $gym = $stmtGym->fetch();
             if ($gym) {
-                $gymId = (int)$gym['id'];
+                $gymId = (int) $gym['id'];
             }
         }
 
@@ -56,7 +57,7 @@ function requireAuth() {
 
         return [
             'partner' => $partner,
-            'partner_id' => (int)$partner['id'],
+            'partner_id' => (int) $partner['id'],
             'gym' => $gym,
             'gym_id' => $gymId
         ];

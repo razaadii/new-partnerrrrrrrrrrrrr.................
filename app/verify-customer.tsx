@@ -1,9 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
-  Alert,
+  Animated,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,14 +13,80 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Rect, Text as SvgText } from 'react-native-svg';
 import { NumericKeypad } from '../components/NumericKeypad';
+import { ThemedAlert } from '../components/ThemedAlert';
 
 export default function VerifyCustomerScreen() {
   const router = useRouter();
   const [code, setCode] = useState<string[]>(['', '', '', '']);
   const [focusedIndex, setFocusedIndex] = useState<number>(0);
+  const [hasError, setHasError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  const shakeAnim = useRef(new Animated.Value(0)).current;
+
+  // Themed Alert State
+  const [alertConfig, setAlertConfig] = useState<{
+    visible: boolean;
+    type: 'success' | 'warning' | 'danger' | 'info' | 'confirm';
+    title: string;
+    message: string;
+    confirmText?: string;
+    onConfirm: () => void;
+  }>({
+    visible: false,
+    type: 'info',
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
+  const showAlert = (
+    type: 'success' | 'warning' | 'danger' | 'info' | 'confirm',
+    title: string,
+    message: string
+  ) => {
+    setAlertConfig({
+      visible: true,
+      type,
+      title,
+      message,
+      confirmText: 'OK',
+      onConfirm: () => setAlertConfig((prev) => ({ ...prev, visible: false })),
+    });
+  };
 
   const handleBack = () => {
     router.push('/live-location' as any);
+  };
+
+  const verifyPin = (pinToTest: string) => {
+    // Valid customer PIN in demo is 4892 or 1234
+    if (pinToTest === '4892' || pinToTest === '1234') {
+      setHasError(false);
+      setErrorMessage('');
+      setTimeout(() => {
+        router.replace('/location-verified' as any);
+      }, 300);
+    } else {
+      // Trigger shake animation and red box highlight
+      setHasError(true);
+      setErrorMessage('Invalid customer PIN. Enter 4892.');
+
+      Animated.sequence([
+        Animated.timing(shakeAnim, { toValue: 12, duration: 40, useNativeDriver: true }),
+        Animated.timing(shakeAnim, { toValue: -12, duration: 40, useNativeDriver: true }),
+        Animated.timing(shakeAnim, { toValue: 8, duration: 40, useNativeDriver: true }),
+        Animated.timing(shakeAnim, { toValue: -8, duration: 40, useNativeDriver: true }),
+        Animated.timing(shakeAnim, { toValue: 0, duration: 40, useNativeDriver: true }),
+      ]).start();
+
+      // Automatically blank the box after 750ms
+      setTimeout(() => {
+        setCode(['', '', '', '']);
+        setFocusedIndex(0);
+        setHasError(false);
+      }, 750);
+    }
   };
 
   const handleNumberPress = (digit: string) => {
@@ -30,6 +96,11 @@ export default function VerifyCustomerScreen() {
       nextCode[emptyIndex] = digit;
       setCode(nextCode);
       setFocusedIndex(Math.min(emptyIndex + 1, 3));
+
+      // Auto verify when 4th digit is entered
+      if (emptyIndex === 3) {
+        verifyPin(nextCode.join(''));
+      }
     }
   };
 
@@ -46,17 +117,24 @@ export default function VerifyCustomerScreen() {
       nextCode[lastFilledIndex] = '';
       setCode(nextCode);
       setFocusedIndex(lastFilledIndex);
+      setHasError(false);
+      setErrorMessage('');
     }
   };
 
   const handleVerifyCode = () => {
-    // Navigate to location-verified
-    router.push('/location-verified' as any);
+    const entered = code.join('');
+    if (entered.length < 4) {
+      showAlert('warning', 'Incomplete Code', 'Please enter all 4 digits of the customer verification code.');
+      return;
+    }
+    verifyPin(entered);
   };
 
   const handleInfoPress = () => {
-    Alert.alert(
-      'Verification Information',
+    showAlert(
+      'info',
+      'Verification Code Protection',
       'The 4-digit code is provided to the customer in their SlotB booking details. This ensures safety and confirms on-site arrival.'
     );
   };
@@ -118,8 +196,13 @@ export default function VerifyCustomerScreen() {
             Please ask the customer for the 4-digit code{'\n'}shown in their booking.
           </Text>
 
-          {/* 4 Code Input Boxes */}
-          <View style={styles.codeBoxesRow}>
+          {/* Demo Customer PIN Hint */}
+          <View style={styles.demoPinPill}>
+            <Text style={styles.demoPinText}>Customer PIN: 4892</Text>
+          </View>
+
+          {/* 4 Code Input Boxes with Shake Animation */}
+          <Animated.View style={[styles.codeBoxesRow, { transform: [{ translateX: shakeAnim }] }]}>
             {[0, 1, 2, 3].map((idx) => {
               const val = code[idx];
               const isCurrent = (val === '' && (idx === 0 || code[idx - 1] !== '')) || (idx === 0 && code.every(c => c === ''));
@@ -130,17 +213,26 @@ export default function VerifyCustomerScreen() {
                     styles.codeBox,
                     isCurrent && styles.codeBoxFocused,
                     val !== '' && styles.codeBoxFilled,
+                    hasError && styles.codeBoxError,
                   ]}
                 >
                   {val !== '' ? (
-                    <Text style={styles.codeDigit}>{val}</Text>
+                    <Text style={[styles.codeDigit, hasError && styles.codeDigitError]}>{val}</Text>
                   ) : isCurrent ? (
                     <View style={styles.cursorBlink} />
                   ) : null}
                 </View>
               );
             })}
-          </View>
+          </Animated.View>
+
+          {/* Error Message */}
+          {errorMessage ? (
+            <View style={styles.errorBanner}>
+              <Ionicons name="alert-circle" size={15} color="#DC2626" style={{ marginRight: 5 }} />
+              <Text style={styles.errorBannerText}>{errorMessage}</Text>
+            </View>
+          ) : null}
 
           {/* Security Subtext */}
           <View style={styles.securitySubRow}>
@@ -210,6 +302,15 @@ export default function VerifyCustomerScreen() {
       <NumericKeypad
         onNumberPress={handleNumberPress}
         onDeletePress={handleDeletePress}
+      />
+
+      <ThemedAlert
+        visible={alertConfig.visible}
+        type={alertConfig.type}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        confirmText={alertConfig.confirmText}
+        onConfirm={alertConfig.onConfirm}
       />
     </View>
   );
@@ -326,11 +427,23 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginBottom: 20,
   },
+  demoPinPill: {
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 20,
+    marginBottom: 16,
+  },
+  demoPinText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#166534',
+  },
   codeBoxesRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 12,
-    marginBottom: 18,
+    marginBottom: 14,
   },
   codeBox: {
     width: 58,
@@ -350,10 +463,34 @@ const styles = StyleSheet.create({
     borderColor: '#0052FF',
     backgroundColor: '#FFFFFF',
   },
+  codeBoxError: {
+    borderColor: '#DC2626',
+    backgroundColor: '#FEF2F2',
+  },
   codeDigit: {
     fontSize: 24,
     fontWeight: '700',
     color: '#0F172A',
+  },
+  codeDigitError: {
+    color: '#DC2626',
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  errorBannerText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#DC2626',
   },
   cursorBlink: {
     width: 2,

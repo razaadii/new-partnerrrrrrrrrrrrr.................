@@ -3,7 +3,6 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useState } from 'react';
 import {
-  Alert,
   KeyboardAvoidingView,
   Linking,
   Platform,
@@ -16,19 +15,81 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BottomTabBar } from '../components/BottomTabBar';
+import { ThemedAlert } from '../components/ThemedAlert';
+import { api } from '../services/api';
 
 export default function CompleteJobScreen() {
   const router = useRouter();
 
+  const partner = api.getCurrentPartner() || api.getInitialPartner();
+  const activeJob = api.getInitialJobs('active', partner?.login_id).jobs[0] || {
+    id: 'SR101',
+    serviceTitle: 'Service Job',
+    customerName: 'Rahul Kumar',
+    customerPhone: '+91 91234 56789',
+    location: 'Barauni, Ward No. 22, Near Power House Road, Begusarai, Bihar - 851101',
+    time: 'Today, 10:30 AM',
+    amount: 699,
+  };
+
   const [serviceStatus, setServiceStatus] = useState<'completed' | 'not_completed'>('completed');
   const [notes, setNotes] = useState('');
+
+  // Themed Alert State
+  const [alertConfig, setAlertConfig] = useState<{
+    visible: boolean;
+    type: 'success' | 'warning' | 'danger' | 'info' | 'confirm';
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    showCancel?: boolean;
+    onConfirm: () => void;
+    onCancel?: () => void;
+  }>({
+    visible: false,
+    type: 'info',
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
+  const showAlert = (
+    type: 'success' | 'warning' | 'danger' | 'info' | 'confirm',
+    title: string,
+    message: string,
+    onConfirm?: () => void,
+    showCancel = false,
+    confirmText = 'OK',
+    cancelText = 'Cancel',
+    onCancel?: () => void
+  ) => {
+    setAlertConfig({
+      visible: true,
+      type,
+      title,
+      message,
+      confirmText,
+      cancelText,
+      showCancel,
+      onConfirm: () => {
+        setAlertConfig((prev) => ({ ...prev, visible: false }));
+        if (onConfirm) onConfirm();
+      },
+      onCancel: () => {
+        setAlertConfig((prev) => ({ ...prev, visible: false }));
+        if (onCancel) onCancel();
+      },
+    });
+  };
 
   const handleBack = () => {
     router.push('/location-verified' as any);
   };
 
   const handleSecurityInfo = () => {
-    Alert.alert(
+    showAlert(
+      'info',
       'Security & Verification',
       'All job milestones are GPS verified and time-stamped for customer and partner protection.'
     );
@@ -36,52 +97,49 @@ export default function CompleteJobScreen() {
 
   const handleCall = () => {
     Linking.openURL('tel:+919123456789').catch(() => {
-      Alert.alert('Call', 'Unable to open phone dialer on this device.');
+      showAlert('warning', 'Phone Call', 'Unable to launch phone dialer on this device.');
     });
   };
 
   const handleWhatsApp = () => {
     Linking.openURL('https://wa.me/919123456789').catch(() => {
-      Alert.alert('WhatsApp', 'Unable to open WhatsApp on this device.');
+      showAlert('warning', 'WhatsApp', 'Unable to launch WhatsApp on this device.');
     });
   };
 
   const handleCompleteJob = () => {
     if (serviceStatus === 'not_completed') {
-      Alert.alert(
-        'Job Not Completed',
-        'Are you sure you want to mark this job as not completed? Our partner support team will contact you.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Submit Report',
-            style: 'destructive',
-            onPress: () => {
-              Alert.alert('Report Submitted', 'Support will review the case.', [
-                {
-                  text: 'OK',
-                  onPress: () => router.push('/dashboard' as any),
-                },
-              ]);
-            },
-          },
-        ]
+      showAlert(
+        'confirm',
+        'Mark Job Not Completed?',
+        'Are you sure you want to mark this service request as unfulfilled? Our partner escalation desk will contact you.',
+        () => {
+          setTimeout(() => {
+            showAlert(
+              'info',
+              'Report Submitted',
+              'Support will review the case within 15 minutes.',
+              () => router.replace('/dashboard' as any)
+            );
+          }, 300);
+        },
+        true,
+        'Submit Report',
+        'Cancel'
       );
       return;
     }
 
     // Success Completion Flow
-    Alert.alert(
+    showAlert(
+      'success',
       'Job Completed Successfully! 🎉',
-      'Thank you for providing excellent service. ₹699 will be credited to your partner earnings.',
-      [
-        {
-          text: 'Go to Dashboard',
-          onPress: () => {
-            router.push('/dashboard' as any);
-          },
-        },
-      ]
+      'Thank you for providing top-tier service. ₹699 has been credited to your partner wallet balance.',
+      () => {
+        router.replace('/dashboard' as any);
+      },
+      false,
+      'Go to Dashboard'
     );
   };
 
@@ -245,7 +303,7 @@ export default function CompleteJobScreen() {
               {/* Customer Info */}
               <View style={styles.customerInfoBlock}>
                 <View style={styles.nameVerifiedRow}>
-                  <Text style={styles.customerName}>Rahul Kumar</Text>
+                  <Text style={styles.customerName}>{activeJob.customerName}</Text>
                   <View style={styles.verifiedBadge}>
                     <Ionicons name="checkmark-circle" size={12} color="#16A34A" style={{ marginRight: 3 }} />
                     <Text style={styles.verifiedBadgeText}>Verified</Text>
@@ -254,15 +312,13 @@ export default function CompleteJobScreen() {
 
                 <View style={styles.phoneRow}>
                   <Ionicons name="call" size={13} color="#64748B" style={{ marginRight: 4 }} />
-                  <Text style={styles.customerPhone}>+91 91234 56789</Text>
+                  <Text style={styles.customerPhone}>{activeJob.customerPhone}</Text>
                 </View>
 
                 <View style={styles.addressRow}>
                   <Ionicons name="location" size={14} color="#64748B" style={{ marginRight: 4, marginTop: 2 }} />
                   <Text style={styles.addressText}>
-                    Barauni, Ward No. 22,{'\n'}
-                    Near Power House Road,{'\n'}
-                    Begusarai, Bihar - 851101
+                    {activeJob.location}
                   </Text>
                 </View>
               </View>
@@ -293,20 +349,19 @@ export default function CompleteJobScreen() {
             <View style={styles.serviceRow}>
               {/* Service Icon */}
               <View style={styles.serviceIconCircle}>
-                <MaterialCommunityIcons name="air-conditioner" size={26} color="#0052FF" />
-                <Ionicons name="snow" size={11} color="#0052FF" style={styles.miniSnow} />
+                <Ionicons name="shield-checkmark" size={24} color="#0052FF" />
               </View>
 
               {/* Service Info */}
               <View style={styles.serviceInfoBlock}>
-                <Text style={styles.serviceTitle}>AC Installation</Text>
+                <Text style={styles.serviceTitle}>{activeJob.serviceTitle}</Text>
                 <View style={styles.metaLine}>
                   <Text style={styles.metaLabel}>Booking ID</Text>
-                  <Text style={styles.metaValue}>#AC1254</Text>
+                  <Text style={styles.metaValue}>#{activeJob.id}</Text>
                 </View>
                 <View style={styles.metaLine}>
                   <Text style={styles.metaLabel}>Scheduled Time</Text>
-                  <Text style={styles.metaValue}>Today, 10:30 AM</Text>
+                  <Text style={styles.metaValue}>{activeJob.time || 'Today, 10:30 AM'}</Text>
                 </View>
                 <View style={styles.metaLine}>
                   <Text style={styles.metaLabel}>Started At</Text>
@@ -317,7 +372,7 @@ export default function CompleteJobScreen() {
               {/* Amount Box */}
               <View style={styles.amountBadgeBox}>
                 <Text style={styles.amountLabel}>Amount</Text>
-                <Text style={styles.amountValue}>₹699</Text>
+                <Text style={styles.amountValue}>₹{activeJob.amount}</Text>
               </View>
             </View>
           </View>
@@ -369,6 +424,18 @@ export default function CompleteJobScreen() {
 
       {/* Bottom Navigation Tab Bar with green Jobs tab */}
       <BottomTabBar activeTab="jobs" activeColorOverride="#16A34A" />
+
+      <ThemedAlert
+        visible={alertConfig.visible}
+        type={alertConfig.type}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        confirmText={alertConfig.confirmText}
+        cancelText={alertConfig.cancelText}
+        showCancel={alertConfig.showCancel}
+        onConfirm={alertConfig.onConfirm}
+        onCancel={alertConfig.onCancel}
+      />
     </View>
   );
 }

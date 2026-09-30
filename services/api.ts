@@ -5,11 +5,14 @@
 import { Platform } from 'react-native';
 
 // Centralized API configuration (configurable for local development & Expo Go)
-const DEV_LAN_IP = '10.10.1.176'; // Replace with your laptop LAN IP if changed
+const DEV_LAN_IP = '172.20.10.2'; // User Wi-Fi IPv4
 const DEV_PORT = '8000';
 
 export const getApiBaseUrl = (): string => {
   if (Platform.OS === 'web') {
+    if (typeof window !== 'undefined' && window.location && window.location.hostname) {
+      return `http://${window.location.hostname}:${DEV_PORT}/api`;
+    }
     return `http://localhost:${DEV_PORT}/api`;
   }
   // Android emulator uses 10.0.2.2, Physical device uses LAN IP
@@ -97,6 +100,122 @@ const SEED_PARTNER_GYM = {
   gym: SEED_GYM,
 };
 
+export const SEED_SERVICE_PARTNERS: Record<string, any> = {
+  '123@aadii': {
+    id: 1,
+    login_id: '123@aadii',
+    email: '123@aadii',
+    name: 'Rohit Kumar',
+    mobile: '+91 91234 56789',
+    phone: '+91 91234 56789',
+    business_type: 'service',
+    category: 'AC Technician',
+    rating: 4.80,
+    review_count: 128,
+    jobs_completed: 156,
+    wallet_balance: 2450.00,
+    status: 'active',
+  },
+  '123@appliance': {
+    id: 3,
+    login_id: '123@appliance',
+    email: '123@appliance',
+    name: 'Rajesh Sharma',
+    mobile: '+91 98234 56781',
+    phone: '+91 98234 56781',
+    business_type: 'service',
+    category: 'Home Appliances Specialist',
+    rating: 4.88,
+    review_count: 142,
+    jobs_completed: 184,
+    wallet_balance: 3200.00,
+    status: 'active',
+  },
+  '123@plumber': {
+    id: 4,
+    login_id: '123@plumber',
+    email: '123@plumber',
+    name: 'Manoj Mistri',
+    mobile: '+91 97345 67892',
+    phone: '+91 97345 67892',
+    business_type: 'service',
+    category: 'Master Plumber',
+    rating: 4.85,
+    review_count: 168,
+    jobs_completed: 210,
+    wallet_balance: 2850.00,
+    status: 'active',
+  },
+  '123@electrician': {
+    id: 5,
+    login_id: '123@electrician',
+    email: '123@electrician',
+    name: 'Sunil Verma',
+    mobile: '+91 96456 78903',
+    phone: '+91 96456 78903',
+    business_type: 'service',
+    category: 'Certified Electrician',
+    rating: 4.90,
+    review_count: 195,
+    jobs_completed: 240,
+    wallet_balance: 3600.00,
+    status: 'active',
+  },
+  '123@instant': {
+    id: 6,
+    login_id: '123@instant',
+    email: '123@instant',
+    name: 'Ajay Singh',
+    mobile: '+91 95567 89014',
+    phone: '+91 95567 89014',
+    business_type: 'service',
+    category: 'Instant Rapid Help Responder',
+    rating: 4.95,
+    review_count: 230,
+    jobs_completed: 310,
+    wallet_balance: 4100.00,
+    status: 'active',
+  },
+};
+
+export const SEED_SERVICE_JOBS: Record<string, any[]> = {
+  '123@aadii': [
+    { id: 'AC1254', serviceTitle: 'AC Installation', category: 'AC Technician', status: 'active', customerName: 'Rahul Kumar', customerPhone: '+91 91234 56789', location: 'Barauni, Begusarai', time: 'Today, 10:30 AM', amount: 699, distance: '2.3 KM', estimatedTime: '8 Mins', verificationCode: '4892', iconType: 'install' },
+    { id: 'AC1255', serviceTitle: 'AC Gas Refill', category: 'AC Technician', status: 'pending', customerName: 'Amit Singh', customerPhone: '+91 98765 43210', location: 'Main Market, Begusarai', time: 'Today, 12:00 PM', amount: 899, distance: '4.1 KM', estimatedTime: '15 Mins', verificationCode: '4567', iconType: 'gas' },
+    { id: 'AC1250', serviceTitle: 'AC Service', category: 'AC Technician', status: 'completed', customerName: 'Rakesh Kumar', customerPhone: '+91 91122 33445', location: 'Teghra, Begusarai', time: 'Today, 02:30 PM', amount: 499, distance: '6.8 KM', estimatedTime: '22 Mins', verificationCode: '8912', iconType: 'service' },
+    { id: 'AC1256', serviceTitle: 'AC Repair', category: 'AC Technician', status: 'pending', customerName: 'Vikash Kumar', customerPhone: '+91 99887 76655', location: 'Harrakh, Begusarai', time: 'Today, 04:30 PM', amount: 599, distance: '3.2 KM', estimatedTime: '11 Mins', verificationCode: '3341', iconType: 'repair' },
+    { id: 'AC1248', serviceTitle: 'AC Maintenance', category: 'AC Technician', status: 'completed', customerName: 'Sanjeet Kumar', customerPhone: '+91 92233 44556', location: 'IOCL Colony, Begusarai', time: 'Today, 06:00 PM', amount: 399, distance: '5.0 KM', estimatedTime: '18 Mins', verificationCode: '9081', iconType: 'maintenance' },
+  ],
+  '123@appliance': [
+    { id: 'AP101', serviceTitle: 'Washing Machine Drum Repair', category: 'Home Appliances Specialist', status: 'active', customerName: 'Neha Agarwal', customerPhone: '+91 98351 11223', location: 'Barauni Sector 2, Begusarai', time: 'Today, 11:00 AM', amount: 799, distance: '1.8 KM', estimatedTime: '6 Mins', verificationCode: '4892', iconType: 'repair' },
+    { id: 'AP102', serviceTitle: 'Refrigerator Cooling Coil Check', category: 'Home Appliances Specialist', status: 'pending', customerName: 'Vikas Verma', customerPhone: '+91 98223 33445', location: 'Kali Mandir Road, Begusarai', time: 'Today, 01:30 PM', amount: 899, distance: '3.5 KM', estimatedTime: '12 Mins', verificationCode: '2314', iconType: 'maintenance' },
+    { id: 'AP103', serviceTitle: 'Microwave Magnetron Replacement', category: 'Home Appliances Specialist', status: 'pending', customerName: 'Sunita Devi', customerPhone: '+91 98112 44556', location: 'Harrakh, Begusarai', time: 'Today, 03:45 PM', amount: 649, distance: '4.2 KM', estimatedTime: '14 Mins', verificationCode: '5521', iconType: 'service' },
+    { id: 'AP104', serviceTitle: 'Washing Machine Installation', category: 'Home Appliances Specialist', status: 'completed', customerName: 'Ritu Raj', customerPhone: '+91 97223 55667', location: 'IOCL Colony, Begusarai', time: 'Today, 05:30 PM', amount: 499, distance: '5.1 KM', estimatedTime: '17 Mins', verificationCode: '8120', iconType: 'install' },
+    { id: 'AP105', serviceTitle: 'RO Water Purifier Filter Change', category: 'Home Appliances Specialist', status: 'completed', customerName: 'Alok Mishra', customerPhone: '+91 96334 66778', location: 'Power House Road, Begusarai', time: 'Today, 07:00 PM', amount: 599, distance: '2.9 KM', estimatedTime: '9 Mins', verificationCode: '3344', iconType: 'gas' },
+  ],
+  '123@plumber': [
+    { id: 'PL201', serviceTitle: 'Concealed Pipe Leakage Repair', category: 'Master Plumber', status: 'active', customerName: 'Ramesh Jha', customerPhone: '+91 95445 77889', location: 'Nagar Nigam Chowk, Begusarai', time: 'Today, 10:15 AM', amount: 549, distance: '2.1 KM', estimatedTime: '7 Mins', verificationCode: '4892', iconType: 'repair' },
+    { id: 'PL202', serviceTitle: 'Sanitary Fitting & Basin Tap', category: 'Master Plumber', status: 'pending', customerName: 'Arvind Singh', customerPhone: '+91 94556 88990', location: 'Teghra Bazar, Begusarai', time: 'Today, 12:45 PM', amount: 999, distance: '6.0 KM', estimatedTime: '20 Mins', verificationCode: '7823', iconType: 'install' },
+    { id: 'PL203', serviceTitle: 'Kitchen Sink Drain Unclogging', category: 'Master Plumber', status: 'pending', customerName: 'Pooja Kumari', customerPhone: '+91 93667 99001', location: 'Barauni Ward 12, Begusarai', time: 'Today, 03:00 PM', amount: 399, distance: '3.8 KM', estimatedTime: '13 Mins', verificationCode: '9012', iconType: 'service' },
+    { id: 'PL204', serviceTitle: 'Overhead Tank Float Valve Fix', category: 'Master Plumber', status: 'completed', customerName: 'Sandeep Roy', customerPhone: '+91 92778 11234', location: 'Harrakh, Begusarai', time: 'Today, 05:15 PM', amount: 449, distance: '4.5 KM', estimatedTime: '16 Mins', verificationCode: '4432', iconType: 'maintenance' },
+    { id: 'PL205', serviceTitle: 'Water Motor Pump Pipeline Fix', category: 'Master Plumber', status: 'completed', customerName: 'Manoj Gupta', customerPhone: '+91 91889 22345', location: 'Mirganj, Begusarai', time: 'Today, 06:45 PM', amount: 699, distance: '3.0 KM', estimatedTime: '10 Mins', verificationCode: '1987', iconType: 'gas' },
+  ],
+  '123@electrician': [
+    { id: 'EL301', serviceTitle: 'MCB Short Circuit Inspection', category: 'Certified Electrician', status: 'active', customerName: 'Deepak Pandey', customerPhone: '+91 90990 33456', location: 'Station Road, Begusarai', time: 'Today, 10:45 AM', amount: 499, distance: '1.5 KM', estimatedTime: '5 Mins', verificationCode: '4892', iconType: 'repair' },
+    { id: 'EL302', serviceTitle: 'Heavy Inverter Wiring & Fan', category: 'Certified Electrician', status: 'pending', customerName: 'Anand Kishore', customerPhone: '+91 89001 44567', location: 'Power House Road, Begusarai', time: 'Today, 01:15 PM', amount: 699, distance: '3.1 KM', estimatedTime: '11 Mins', verificationCode: '6721', iconType: 'install' },
+    { id: 'EL303', serviceTitle: 'Chandelier & Switchboard Setup', category: 'Certified Electrician', status: 'pending', customerName: 'Priya Ranjan', customerPhone: '+91 88112 55678', location: 'GD College Road, Begusarai', time: 'Today, 03:30 PM', amount: 799, distance: '4.0 KM', estimatedTime: '14 Mins', verificationCode: '3211', iconType: 'service' },
+    { id: 'EL304', serviceTitle: 'Geyser Fitting & Safety Earthing', category: 'Certified Electrician', status: 'completed', customerName: 'Gautam Roy', customerPhone: '+91 87223 66789', location: 'Barauni, Begusarai', time: 'Today, 05:45 PM', amount: 549, distance: '5.3 KM', estimatedTime: '18 Mins', verificationCode: '9876', iconType: 'maintenance' },
+    { id: 'EL305', serviceTitle: 'Main Line Fuse Box Replacement', category: 'Certified Electrician', status: 'completed', customerName: 'Vijay Kumar', customerPhone: '+91 86334 77890', location: 'Vishnupur, Begusarai', time: 'Today, 07:15 PM', amount: 849, distance: '2.7 KM', estimatedTime: '9 Mins', verificationCode: '5567', iconType: 'gas' },
+  ],
+  '123@instant': [
+    { id: 'IN401', serviceTitle: 'Emergency Door Lock Open', category: 'Instant Rapid Help Responder', status: 'active', customerName: 'Manish Sinha', customerPhone: '+91 85445 88901', location: 'Zero Mile, Begusarai', time: 'Today, 10:00 AM', amount: 599, distance: '1.2 KM', estimatedTime: '4 Mins', verificationCode: '4892', iconType: 'repair' },
+    { id: 'IN402', serviceTitle: 'Pipe Burst Emergency Shutoff', category: 'Instant Rapid Help Responder', status: 'pending', customerName: 'Kaushik Sen', customerPhone: '+91 84556 99012', location: 'Subhash Chowk, Begusarai', time: 'Today, 12:15 PM', amount: 699, distance: '2.8 KM', estimatedTime: '8 Mins', verificationCode: '8891', iconType: 'service' },
+    { id: 'IN403', serviceTitle: 'Power Sparking Emergency Check', category: 'Instant Rapid Help Responder', status: 'pending', customerName: 'Divya Sharma', customerPhone: '+91 83667 00123', location: 'Hemra Road, Begusarai', time: 'Today, 02:45 PM', amount: 649, distance: '3.9 KM', estimatedTime: '12 Mins', verificationCode: '1102', iconType: 'gas' },
+    { id: 'IN404', serviceTitle: 'Urgent Heavy Furniture Shifting', category: 'Instant Rapid Help Responder', status: 'completed', customerName: 'Amit Pathak', customerPhone: '+91 82778 11234', location: 'Harrakh Kothi, Begusarai', time: 'Today, 04:45 PM', amount: 799, distance: '4.6 KM', estimatedTime: '15 Mins', verificationCode: '4982', iconType: 'maintenance' },
+    { id: 'IN405', serviceTitle: 'Flat Tire & Battery Jumpstart', category: 'Instant Rapid Help Responder', status: 'completed', customerName: 'Rakesh Yadav', customerPhone: '+91 81889 22345', location: 'NH-31 Bypass, Begusarai', time: 'Today, 06:30 PM', amount: 549, distance: '5.8 KM', estimatedTime: '19 Mins', verificationCode: '7762', iconType: 'install' },
+  ],
+};
+
 let memPlans: any[] = [
   { id: 1, gym_id: 1, name: 'Monthly Standard', duration: '1 Month', fee: 1500, status: 'active', active_members_count: 3 },
   { id: 2, gym_id: 1, name: 'Quarterly Fit', duration: '3 Months', fee: 3999, status: 'active', active_members_count: 2 },
@@ -149,8 +268,24 @@ let memReminders = [
   { id: 2, gym_id: 1, member_id: 5, member_name: 'Kunal Kapoor', type: 'payment_due', message: 'Dear Kunal Kapoor, your monthly fee of ₹1,500 is due.', status: 'sent', created_at: '2024-03-19' },
 ];
 
-// Reusable HTTP fetcher with timeout and token injection
-async function request(endpoint: string, options: RequestInit = {}, useCache = false) {
+// Backend reachability state & circuit-breaker
+let isBackendOffline = false;
+let offlineUntil = 0;
+
+export const setBackendOffline = (offline: boolean) => {
+  isBackendOffline = offline;
+  offlineUntil = offline ? Date.now() + 30000 : 0;
+};
+
+export const getIsBackendOffline = () => isBackendOffline && Date.now() < offlineUntil;
+
+// Reusable HTTP fetcher with fast timeout and token injection
+async function request(endpoint: string, options: RequestInit = {}, useCache = false, forceNetwork = false) {
+  // If backend is currently unreachable, bypass network immediately (0ms latency)
+  if (isBackendOffline && Date.now() < offlineUntil && !forceNetwork) {
+    return null;
+  }
+
   const url = `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
 
   // Check cache for GET requests
@@ -173,7 +308,7 @@ async function request(endpoint: string, options: RequestInit = {}, useCache = f
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000); // 4 second network timeout
+    const timeoutId = setTimeout(() => controller.abort(), 1200); // Fast 1.2s timeout
 
     const res = await fetch(url, {
       ...options,
@@ -184,21 +319,70 @@ async function request(endpoint: string, options: RequestInit = {}, useCache = f
 
     const json = await res.json();
 
+    // Successfully reached backend
+    isBackendOffline = false;
+    offlineUntil = 0;
+
     if (json.success && useCache) {
       cache.set(url, { data: json, timestamp: Date.now() });
     }
 
     return json;
   } catch (error: any) {
-    // Network offline / unreachable
+    // Network offline / unreachable -> activate circuit breaker
+    isBackendOffline = true;
+    offlineUntil = Date.now() + 30000;
     return null;
   }
+}
+
+function computeLocalDashboard() {
+  const activeMembers = memMembers.filter((m) => m.status === 'active');
+  const presentCount = Object.values(memAttendance).filter((a) => a.status === 'present').length;
+  const absentCount = Math.max(0, activeMembers.length - presentCount);
+  const totalCollected = memPayments.reduce((sum, p) => (p.status === 'paid' ? sum + p.amount : sum), 0);
+  const pendingDues = memPayments.reduce((sum, p) => (p.status === 'due' ? sum + p.amount : sum), 0);
+
+  const dueMembers = memPayments
+    .filter((p) => p.status === 'due')
+    .map((p) => ({
+      payment_id: p.id,
+      member_id: p.member_id,
+      name: p.member_name,
+      amount: p.amount,
+      due_date: p.due_date,
+      plan_name: p.plan_name,
+    }));
+
+  return {
+    gym: SEED_GYM,
+    metrics: {
+      total_members: memMembers.length,
+      active_members: activeMembers.length,
+      inactive_members: memMembers.length - activeMembers.length,
+      present_today: presentCount,
+      absent_today: absentCount,
+      attendance_rate: activeMembers.length > 0 ? Math.round((presentCount / activeMembers.length) * 100) : 0,
+      active_plans: memPlans.filter((p) => p.status === 'active').length,
+      total_collected: totalCollected,
+      pending_dues: pendingDues,
+      due_members_count: dueMembers.length,
+    },
+    recent_members: memMembers.slice(0, 5),
+    due_members: dueMembers,
+    recent_payments: memPayments.slice(0, 5),
+  };
 }
 
 export const api = {
   getBaseUrl: () => API_BASE_URL,
   getToken: () => currentAuthToken,
   getCurrentPartner: () => currentPartnerData,
+  isOffline: () => isBackendOffline && Date.now() < offlineUntil,
+  resetOfflineStatus: () => {
+    isBackendOffline = false;
+    offlineUntil = 0;
+  },
 
   // ==========================================
   // AUTHENTICATION
@@ -241,33 +425,23 @@ export const api = {
           message: 'Invalid Gym ID or password.',
         };
       }
-    } else if (cleanId === '123@aadii') {
+    } else if (SEED_SERVICE_PARTNERS[cleanId]) {
       if (password === '123') {
-        const partnerTech = {
-          id: 1,
-          login_id: '123@aadii',
-          email: '123@aadii',
-          name: 'Aditya Tech',
-          mobile: '+91 98765 43210',
-          business_type: 'service',
-          category: 'AC Technician',
-          rating: 4.9,
-          status: 'active',
-        };
-        const token = 'demo-session-token-service-123';
-        saveAuthToStorage(token, partnerTech);
+        const partner = SEED_SERVICE_PARTNERS[cleanId];
+        const token = `demo-session-token-${cleanId.replace('@', '-')}`;
+        saveAuthToStorage(token, partner);
         return {
           success: true,
           data: {
             token,
-            partner: partnerTech,
+            partner,
           },
-          message: 'Welcome back, Aditya Tech!',
+          message: `Welcome back, ${partner.name}!`,
         };
       } else {
         return {
           success: false,
-          message: 'Invalid Gym ID or password.',
+          message: 'Invalid Partner ID or password.',
         };
       }
     }
@@ -302,52 +476,119 @@ export const api = {
   // GYM MODULE API
   // ==========================================
   gym: {
+    // Synchronous 0ms getters for instant-on UI rendering
+    getInitialDashboard: () => ({
+      success: true,
+      data: computeLocalDashboard(),
+    }),
+
+    getInitialMembers: (params?: { q?: string; status?: string; plan_id?: number | string }) => {
+      let filtered = [...memMembers];
+      if (params?.q) {
+        const query = params.q.toLowerCase();
+        filtered = filtered.filter(
+          (m) => m.name.toLowerCase().includes(query) || m.mobile.includes(query)
+        );
+      }
+      if (params?.status && params.status !== 'all') {
+        if (params.status === 'due') {
+          filtered = filtered.filter((m) => m.last_payment_status === 'due');
+        } else {
+          filtered = filtered.filter((m) => m.status === params.status);
+        }
+      }
+      return {
+        success: true,
+        data: { members: filtered, total: filtered.length },
+      };
+    },
+
+    getInitialAttendance: (date?: string, search?: string) => {
+      const activeList = memMembers.filter((m) => m.status === 'active');
+      let result = activeList.map((m) => {
+        const att = memAttendance[String(m.id)];
+        return {
+          member_id: m.id,
+          member_name: m.name,
+          member_mobile: m.mobile,
+          member_status: m.status,
+          plan_name: m.plan_name,
+          status: att?.status || 'absent',
+          check_in_time: att?.check_in_time || null,
+          attendance_date: date || new Date().toISOString().split('T')[0],
+        };
+      });
+
+      if (search) {
+        const q = search.toLowerCase();
+        result = result.filter((r) => r.member_name.toLowerCase().includes(q) || r.member_mobile.includes(q));
+      }
+
+      const presentCount = result.filter((r) => r.status === 'present').length;
+      return {
+        success: true,
+        data: {
+          date: date || new Date().toISOString().split('T')[0],
+          summary: {
+            total_members: result.length,
+            present_count: presentCount,
+            absent_count: result.length - presentCount,
+            attendance_rate: result.length > 0 ? Math.round((presentCount / result.length) * 100) : 0,
+          },
+          attendance: result,
+        },
+      };
+    },
+
+    getInitialPayments: (statusFilter = 'all', search?: string) => {
+      let list = [...memPayments];
+      if (statusFilter === 'paid') list = list.filter((p) => p.status === 'paid');
+      if (statusFilter === 'due') list = list.filter((p) => p.status === 'due');
+      if (search) {
+        const q = search.toLowerCase();
+        list = list.filter((p) => p.member_name.toLowerCase().includes(q) || p.notes.toLowerCase().includes(q));
+      }
+
+      const totalCollected = memPayments.reduce((s, p) => (p.status === 'paid' ? s + p.amount : s), 0);
+      const pendingDues = memPayments.reduce((s, p) => (p.status === 'due' ? s + p.amount : s), 0);
+
+      return {
+        success: true,
+        data: {
+          summary: {
+            total_collected: totalCollected,
+            pending_dues: pendingDues,
+            paid_count: memPayments.filter((p) => p.status === 'paid').length,
+            due_count: memPayments.filter((p) => p.status === 'due').length,
+          },
+          payments: list,
+        },
+      };
+    },
+
+    getInitialPlans: () => ({ success: true, data: [...memPlans] }),
+    getInitialTimings: () => ({
+      success: true,
+      data: {
+        opening_time: SEED_GYM.opening_time,
+        closing_time: SEED_GYM.closing_time,
+        slots: [...memTimings],
+      },
+    }),
+    getInitialBusiness: () => ({ success: true, data: { ...SEED_GYM } }),
+
     // 1. Dashboard live metrics
     getDashboard: async (forceRefresh = false) => {
       if (forceRefresh) {
         cache.delete(`${API_BASE_URL}/gym/dashboard`);
       }
-      const res = await request('/gym/dashboard', { method: 'GET' }, !forceRefresh);
+      const res = await request('/gym/dashboard', { method: 'GET' }, !forceRefresh, forceRefresh);
       if (res && res.success) return res;
 
       // Fallback to computed demo metrics
-      const activeMembers = memMembers.filter((m) => m.status === 'active');
-      const presentCount = Object.values(memAttendance).filter((a) => a.status === 'present').length;
-      const absentCount = Math.max(0, activeMembers.length - presentCount);
-      const totalCollected = memPayments.reduce((sum, p) => (p.status === 'paid' ? sum + p.amount : sum), 0);
-      const pendingDues = memPayments.reduce((sum, p) => (p.status === 'due' ? sum + p.amount : sum), 0);
-
-      const dueMembers = memPayments
-        .filter((p) => p.status === 'due')
-        .map((p) => ({
-          payment_id: p.id,
-          member_id: p.member_id,
-          name: p.member_name,
-          amount: p.amount,
-          due_date: p.due_date,
-          plan_name: p.plan_name,
-        }));
-
       return {
         success: true,
-        data: {
-          gym: SEED_GYM,
-          metrics: {
-            total_members: memMembers.length,
-            active_members: activeMembers.length,
-            inactive_members: memMembers.length - activeMembers.length,
-            present_today: presentCount,
-            absent_today: absentCount,
-            attendance_rate: activeMembers.length > 0 ? Math.round((presentCount / activeMembers.length) * 100) : 0,
-            active_plans: memPlans.filter((p) => p.status === 'active').length,
-            total_collected: totalCollected,
-            pending_dues: pendingDues,
-            due_members_count: dueMembers.length,
-          },
-          recent_members: memMembers.slice(0, 5),
-          due_members: dueMembers,
-          recent_payments: memPayments.slice(0, 5),
-        },
+        data: computeLocalDashboard(),
       };
     },
 
@@ -846,15 +1087,53 @@ export const api = {
   },
 
   // ==========================================
-  // EXISTING SERVICE PARTNER API (PRESERVED)
+  // SERVICE PARTNER API (Multi-Service Support)
   // ==========================================
-  getJobs: async (filter = 'all') => {
+  getInitialPartner: () => {
+    return currentPartnerData || SEED_SERVICE_PARTNERS['123@aadii'];
+  },
+
+  getInitialJobs: (filter = 'all', partnerLoginId?: string) => {
+    const loginKey = partnerLoginId || currentPartnerData?.login_id || '123@aadii';
+    const all = SEED_SERVICE_JOBS[loginKey] || SEED_SERVICE_JOBS['123@aadii'];
+    const filtered = filter === 'all' ? all : all.filter((j) => j.status === filter);
+    return {
+      success: true,
+      jobs: filtered,
+      summary: {
+        total: all.length,
+        active: all.filter((j) => j.status === 'active').length,
+        pending: all.filter((j) => j.status === 'pending').length,
+        completed: all.filter((j) => j.status === 'completed').length,
+      },
+    };
+  },
+
+  getJobs: async (filter = 'all', partnerId?: number | string) => {
+    const pid = partnerId || currentPartnerData?.id || 1;
+    const loginKey = currentPartnerData?.login_id || '123@aadii';
     try {
-      const res = await fetch(`${API_BASE_URL}/jobs/list?filter=${filter}`);
-      return await res.json();
+      const res = await fetch(`${API_BASE_URL}/jobs/list?filter=${filter}&partner_id=${pid}`);
+      const json = await res.json();
+      if (json && json.success && Array.isArray(json.jobs)) {
+        return json;
+      }
     } catch (e) {
-      return null;
+      // Fallback
     }
+
+    const all = SEED_SERVICE_JOBS[loginKey] || SEED_SERVICE_JOBS['123@aadii'];
+    const filtered = filter === 'all' ? all : all.filter((j) => j.status === filter);
+    return {
+      success: true,
+      jobs: filtered,
+      summary: {
+        total: all.length,
+        active: all.filter((j) => j.status === 'active').length,
+        pending: all.filter((j) => j.status === 'pending').length,
+        completed: all.filter((j) => j.status === 'completed').length,
+      },
+    };
   },
 
   acceptJob: async (jobId: string) => {
@@ -896,13 +1175,60 @@ export const api = {
     }
   },
 
+  getInitialEarnings: () => {
+    const partner = currentPartnerData || SEED_SERVICE_PARTNERS['123@aadii'];
+    const loginKey = partner.login_id || '123@aadii';
+    const jobs = SEED_SERVICE_JOBS[loginKey] || SEED_SERVICE_JOBS['123@aadii'];
+    const completedJobs = jobs.filter((j: any) => j.status === 'completed');
+    const jobEarnings = completedJobs.reduce((sum: number, j: any) => sum + j.amount, 0);
+
+    const txns = jobs.map((j: any, idx: number) => ({
+      id: `TXN-${100 + idx}`,
+      title: `${j.serviceTitle} • ${j.customerName}`,
+      type: 'job',
+      date: j.time,
+      amount: j.amount,
+      status: j.status === 'completed' ? 'credited' : 'processing',
+    }));
+
+    return {
+      success: true,
+      wallet_balance: partner.wallet_balance || (2450 + jobEarnings),
+      today_earnings: jobEarnings || 2450,
+      transactions: txns,
+    };
+  },
+
   getEarnings: async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/earnings`);
-      return await res.json();
+      const json = await res.json();
+      if (json && json.success) return json;
     } catch (e) {
-      return null;
+      // Fallback
     }
+
+    const partner = currentPartnerData || SEED_SERVICE_PARTNERS['123@aadii'];
+    const loginKey = partner.login_id || '123@aadii';
+    const jobs = SEED_SERVICE_JOBS[loginKey] || SEED_SERVICE_JOBS['123@aadii'];
+    const completedJobs = jobs.filter((j: any) => j.status === 'completed');
+    const jobEarnings = completedJobs.reduce((sum: number, j: any) => sum + j.amount, 0);
+
+    const txns = jobs.map((j: any, idx: number) => ({
+      id: `TXN-${100 + idx}`,
+      title: `${j.serviceTitle} • ${j.customerName}`,
+      type: 'job',
+      date: j.time,
+      amount: j.amount,
+      status: j.status === 'completed' ? 'credited' : 'processing',
+    }));
+
+    return {
+      success: true,
+      wallet_balance: partner.wallet_balance || (2450 + jobEarnings),
+      today_earnings: jobEarnings || 2450,
+      transactions: txns,
+    };
   },
 
   withdraw: async (amount: number) => {

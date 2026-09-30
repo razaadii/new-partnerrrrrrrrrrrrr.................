@@ -18,6 +18,7 @@ import { CitySkylineBackground } from '../components/CitySkylineBackground';
 import { GoogleButton } from '../components/GoogleButton';
 import { InputField } from '../components/InputField';
 import { SlotBLogo } from '../components/SlotBLogo';
+import { ThemedAlert } from '../components/ThemedAlert';
 import { api } from '../services/api';
 
 export default function LoginScreen() {
@@ -28,9 +29,40 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
+  // Themed Alert State
+  const [alertConfig, setAlertConfig] = useState<{
+    visible: boolean;
+    type: 'success' | 'warning' | 'danger' | 'info' | 'confirm';
+    title: string;
+    message: string;
+    confirmText?: string;
+    onConfirm: () => void;
+  }>({
+    visible: false,
+    type: 'danger',
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
+  const showAlert = (
+    type: 'success' | 'warning' | 'danger' | 'info' | 'confirm',
+    title: string,
+    message: string
+  ) => {
+    setAlertConfig({
+      visible: true,
+      type,
+      title,
+      message,
+      confirmText: 'OK',
+      onConfirm: () => setAlertConfig((prev) => ({ ...prev, visible: false })),
+    });
+  };
+
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
-      setErrorMessage('Please enter your Partner ID / email and password.');
+      showAlert('warning', 'Missing Credentials', 'Please enter your Partner ID / email and password.');
       return;
     }
 
@@ -50,26 +82,30 @@ export default function LoginScreen() {
           router.replace('/dashboard' as any);
         }
       } else {
-        const msg = res?.message || 'Invalid Gym ID or password.';
+        const msg = res?.message || 'Invalid Partner ID or password.';
         setErrorMessage(msg);
-        Alert.alert('Login Failed', msg);
+        showAlert('danger', 'Login Failed', msg);
       }
     } catch (e: any) {
-      setErrorMessage('Unable to connect to SlotB server. Check that backend is running.');
+      showAlert('danger', 'Connection Error', 'Unable to connect to SlotB server. Check your internet connection.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSelectDemo = (type: 'gym' | 'service') => {
+  const DEMO_ACCOUNTS = [
+    { key: 'gym', label: 'Gym Owner', id: '123@gym', icon: 'barbell' as const },
+    { key: 'ac', label: 'AC Tech', id: '123@aadii', icon: 'snow' as const },
+    { key: 'appliance', label: 'Appliances', id: '123@appliance', icon: 'construct' as const },
+    { key: 'plumber', label: 'Plumber', id: '123@plumber', icon: 'water' as const },
+    { key: 'electrician', label: 'Electrician', id: '123@electrician', icon: 'flash' as const },
+    { key: 'instant', label: 'Instant Help', id: '123@instant', icon: 'timer' as const },
+  ];
+
+  const handleSelectDemo = (demoId: string) => {
     setErrorMessage('');
-    if (type === 'gym') {
-      setEmail('123@gym');
-      setPassword('123');
-    } else {
-      setEmail('123@aadii');
-      setPassword('123');
-    }
+    setEmail(demoId);
+    setPassword('123');
   };
 
   const handleCreateAccount = () => {
@@ -98,54 +134,51 @@ export default function LoginScreen() {
             <View style={styles.header}>
               <SlotBLogo badgeVariant="blue" size="medium" />
               <Text style={styles.title}>Welcome Back!</Text>
-              <Text style={styles.subtitle}>Login to manage your business</Text>
+              <Text style={styles.subtitle}>Select your service role or enter credentials</Text>
 
-              {/* Demo Account Switcher */}
-              <View style={styles.demoSwitcher}>
-                <Pressable
-                  onPress={() => handleSelectDemo('gym')}
-                  style={[
-                    styles.demoPill,
-                    email === '123@gym' && styles.demoPillActive,
-                  ]}
-                >
-                  <Ionicons
-                    name="barbell"
-                    size={14}
-                    color={email === '123@gym' ? '#FFFFFF' : '#0052FF'}
-                  />
-                  <Text
-                    style={[
-                      styles.demoPillText,
-                      email === '123@gym' && styles.demoPillTextActive,
-                    ]}
-                  >
-                    Gym Owner (123@gym)
-                  </Text>
-                </Pressable>
-
-                <Pressable
-                  onPress={() => handleSelectDemo('service')}
-                  style={[
-                    styles.demoPill,
-                    email === '123@aadii' && styles.demoPillActive,
-                  ]}
-                >
-                  <Ionicons
-                    name="construct"
-                    size={14}
-                    color={email === '123@aadii' ? '#FFFFFF' : '#0052FF'}
-                  />
-                  <Text
-                    style={[
-                      styles.demoPillText,
-                      email === '123@aadii' && styles.demoPillTextActive,
-                    ]}
-                  >
-                    Service Tech (123@aadii)
-                  </Text>
-                </Pressable>
-              </View>
+              {/* Demo Multi-Service Role Switcher Strip */}
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.demoScrollContent}
+                style={styles.demoScrollView}
+              >
+                {DEMO_ACCOUNTS.map((account) => {
+                  const isSelected = email === account.id;
+                  return (
+                    <Pressable
+                      key={account.key}
+                      onPress={() => handleSelectDemo(account.id)}
+                      style={[
+                        styles.demoPill,
+                        isSelected && styles.demoPillActive,
+                      ]}
+                    >
+                      <Ionicons
+                        name={account.icon}
+                        size={14}
+                        color={isSelected ? '#FFFFFF' : '#0052FF'}
+                      />
+                      <Text
+                        style={[
+                          styles.demoPillText,
+                          isSelected && styles.demoPillTextActive,
+                        ]}
+                      >
+                        {account.label}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.demoPillSub,
+                          isSelected && styles.demoPillSubActive,
+                        ]}
+                      >
+                        {account.id}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
             </View>
 
             {/* Elevated White Form Card */}
@@ -237,6 +270,15 @@ export default function LoginScreen() {
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
+
+      <ThemedAlert
+        visible={alertConfig.visible}
+        type={alertConfig.type}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        confirmText={alertConfig.confirmText}
+        onConfirm={alertConfig.onConfirm}
+      />
     </View>
   );
 }
@@ -276,10 +318,13 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontWeight: '400',
   },
-  demoSwitcher: {
-    flexDirection: 'row',
-    gap: 8,
+  demoScrollView: {
     marginTop: 14,
+    width: '100%',
+  },
+  demoScrollContent: {
+    paddingHorizontal: 4,
+    gap: 8,
   },
   demoPill: {
     flexDirection: 'row',
@@ -288,7 +333,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#EFF6FF',
     borderWidth: 1,
     borderColor: '#BFDBFE',
-    paddingVertical: 6,
+    paddingVertical: 7,
     paddingHorizontal: 12,
     borderRadius: 20,
   },
@@ -298,11 +343,19 @@ const styles = StyleSheet.create({
   },
   demoPillText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#0052FF',
   },
   demoPillTextActive: {
     color: '#FFFFFF',
+  },
+  demoPillSub: {
+    fontSize: 10,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  demoPillSubActive: {
+    color: 'rgba(255, 255, 255, 0.85)',
   },
   card: {
     backgroundColor: '#FFFFFF',

@@ -15,16 +15,17 @@ export const GymBottomTabBar: React.FC<GymBottomTabBarProps> = React.memo(({ act
   const handleTabPress = (tab: GymTabName) => {
     if (tab === activeTab) return;
 
+    // Use router.replace to prevent stack accumulation and enable smooth in-place fade
     if (tab === 'home') {
-      router.push('/gym/dashboard' as any);
+      router.replace('/gym/dashboard' as any);
     } else if (tab === 'members') {
-      router.push('/gym/members' as any);
+      router.replace('/gym/members' as any);
     } else if (tab === 'attendance') {
-      router.push('/gym/attendance' as any);
+      router.replace('/gym/attendance' as any);
     } else if (tab === 'payments') {
-      router.push('/gym/payments' as any);
+      router.replace('/gym/payments' as any);
     } else if (tab === 'profile') {
-      router.push('/gym/profile' as any);
+      router.replace('/gym/profile' as any);
     }
   };
 
@@ -76,14 +77,17 @@ export const GymBottomTabBar: React.FC<GymBottomTabBarProps> = React.memo(({ act
           <Pressable
             key={tab.key}
             onPress={() => handleTabPress(tab.key)}
-            style={styles.tabItem}
+            style={({ pressed }) => [
+              styles.tabItem,
+              pressed && styles.tabItemPressed,
+            ]}
             hitSlop={6}
           >
-            <View style={styles.iconContainer}>
+            <View style={[styles.iconContainer, isActive && styles.iconContainerActive]}>
               {isActive && <View style={styles.topIndicator} />}
               <Ionicons
                 name={isActive ? tab.iconActive : tab.iconInactive}
-                size={22}
+                size={21}
                 color={color}
               />
             </View>
@@ -110,31 +114,44 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
-    height: Platform.OS === 'ios' ? 84 : 64,
+    height: Platform.OS === 'ios' ? 84 : 66,
     paddingBottom: Platform.OS === 'ios' ? 24 : 8,
     paddingTop: 8,
-    elevation: 8,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#0F172A',
+        shadowOffset: { width: 0, height: -3 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
   },
   tabItem: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  tabItemPressed: {
+    opacity: 0.7,
+  },
   iconContainer: {
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
-    height: 28,
-    width: 38,
+    height: 30,
+    width: 44,
+    borderRadius: 15,
+  },
+  iconContainerActive: {
+    backgroundColor: '#EFF6FF',
   },
   topIndicator: {
     position: 'absolute',
     top: -8,
-    width: 24,
+    width: 20,
     height: 3,
     borderRadius: 2,
     backgroundColor: '#0052FF',
